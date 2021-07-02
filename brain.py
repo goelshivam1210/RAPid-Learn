@@ -2,7 +2,7 @@
 # author: Shivam Goel
 # email: shivam.goel@tufts.edu
 
-# This file is the Brain of SPELer.
+# This file is the Brain of RAPidL.
 # It is the main file that needs to be run to run the framework
 
 Important References
@@ -53,9 +53,13 @@ Important References
 # make a new filoe called experiment.py which runs this script accordingly.
 
 import os
+import re
+import sys
 import csv
 import math
+import copy
 import argparse
+import subprocess
 
 import gym
 import numpy as np
@@ -63,65 +67,134 @@ import gym_novel_gridworlds
 
 from gym_novel_gridworlds.wrappers import SaveTrajectories, LimitActions
 from gym_novel_gridworlds.observation_wrappers import LidarInFront, AgentMap
+from gym_novel_gridworlds.novelty_wrappers import inject_novelty
 
+from learner import *
 
+# import sys, string, os, arcgisscripting
+# os.system("C:/Documents and Settings/flow_model/flow.exe")
+# dictionary that maps the PDDL actions to the game engine permissable actions.
+map = {'moveforward':'Forward',
+        'turnleft':'Left',
+        'turnright':'Right',
+        'breakblock': 'Break',
+        'placetreetap':'Place_tree_tap',
+        'extractrubber':'Extract_rubber',
+        'craftplanks':'Craft_plank',
+        'craftsticks':'Craft_stick',
+        'crafttreetap': 'Craft_tree_tap',
+        'craftpogostick': 'Craft_pogo_stick',
+        'select': 'Select'}
 
 class Brain:
     
     def __init__(self) -> None:
         pass
 
-    def init_brain():
+    def init_brain(self):
         pass
 
 
-    def reset_brain():
+    def reset_brain(self):
         pass
 
-    def run_brain():
-        # this is the driving function of this class.
-        # call the environment and run the envuronment for x number of trials.
-        # 
+    def run_brain(self):
+        '''        
+            # this is the driving function of this class.
+            # call the environment and run the envuronment for x number of trials.
+        '''
+        env_id = 'NovelGridworld-Pogostick-v1' # hardcoded for now. will add the argparser later.
+        env = self.instantiate_env(env_id, None, False) # make a new instance of the environment.
+        plan, game_action_set = self.call_planner("domain", "problem", env) # get a plan
+        # print("game action set aftert the planner = {}".format(game_action_set))
+        result, failed_action = self.execute_plan(env, game_action_set)
+        if result:
+            print("succesfully completed the task without any hassle!")
+        if not result: # if the results in plan failure.
+            # call the learner with the failed operator
+            learned_operator = self.call_learner(failed_action=failed_action)
+            # call the policy_learner to convert the policy to an operator.
+
+        # run the planner's OP to the domain as the step
+        
+
 
         pass
 
 
-    def call_learner():
+    def call_learner(self, failed_action):
         # This function instantiates a RL learner to start finding interesting states to send 
         # to the planner
         # 
+        learn_operator = Learner(failed_action)
+        return learn_operator
+
 
         # 
         pass
 
-    def call_planner():
-        # this function wehn called calls the planner
-        pass
+    def call_planner(self, domain, problem, env):
+        '''
+            # Given a domain and a problem file
+            # This function return the ffmetric Planner output.
+            # In the action format
+        '''
+    
+        run_script = "Metric-FF-v2.1/./ff -o "+domain+".pddl -f "+problem+".pddl -s 0"
+        output = subprocess.getoutput(run_script)
+        plan, game_action_set = self._output_to_plan(output, env)
+        return plan, game_action_set
 
-    def instantiate_env(env_id, novelty_family, inject):
+    def _output_to_plan(self, output, env):
+        '''
+        Helper function to perform regex on the output from the planner.
+        I/P: Takes in the ffmetric output and
+        O/P: converts it to a action sequence list.
+        '''
 
-        ###
+        ff_plan = re.findall(r"\d+?: (.+)", output.lower()) # matches the string to find the plan bit from the ffmetric output.
+        action_set = []
+        for i in range (len(ff_plan)):
+            action_set.append(ff_plan[i].split(" ")[0])
+        # print (ff_plan[0].split())
+
+        if "unsolvable" in output:
+            print ("Plan not found with FF! Error: {}".format(
+                output))
+
+        if ff_plan[-1] == "reach-goal":
+            ff_plan = ff_plan[:-1]
+        
+
+        # convert the action set to the actions permissable in the domain
+        game_action_set = copy.deepcopy(action_set)
+        # print ("game action set = {}".format(game_action_set))
+        for i in range(len(game_action_set)):
+            game_action_set[i] = map[game_action_set[i]]
+        for i in range(len(game_action_set)):
+            game_action_set[i] = env.actions_id[game_action_set[i]]
+        
+        return action_set, game_action_set
+
+    def instantiate_env(self, env_id, novelty_family, inject):
+        '''
         # This function instantiate a new instance of the environment for the agent to interact with.
         # All the novelty is injected here.
         # it takes the env_ID and the novelty arguemtns list as input.
         # it returns an instance of the environment.
-        ###
-
-        # env2 = gym.make(env_id)
-
-        # env2.unbreakable_items.add('crafting_table') # Make crafting table unbreakable for easy solving of task.
-        # env2 = LimitActions(env2, {'Forward', 'Left', 'Right', 'Break', 'Craft_bow'}) # limit actions for easy training
-        # env2 = LidarInFront(env2) # generate the observation space using LIDAR sensors
-        # # print(env.unbreakable_items)
-        # env2.reward_done = 1000
-        # env2.reward_intermediate = 50
-        # if inject:
-        #     env2 = inject_novelty(env2, novelty_family[0], novelty_family[1], novelty_family[2], novelty_family[3])
-        # check_env(env2, warn=True) # check the environment    
-        # return env2
-
-
-        pass
+        '''
+        env = gym.make(env_id)
+        env.render()
+        # print ("env.actions_id = {}".format(env.actions_id))
+        env.unbreakable_items.add('crafting_table') # Make crafting table unbreakable for easy solving of task.
+        # env = LimitActions(env, {'Forward', 'Left', 'Right', 'Break', 'Craft_bow'}) # limit actions for easy training
+        env = LidarInFront(env) # generate the observation space using LIDAR sensors
+        # print(env.unbreakable_items)
+        env.reward_done = 1000
+        env.reward_intermediate = 50
+        if inject:
+            env = inject_novelty(env, novelty_family[0], novelty_family[1], novelty_family[2], novelty_family[3]) 
+        return env
 
     def call_operator_learner():
         pass
@@ -133,10 +206,37 @@ class Brain:
         pass
 
 
+    def execute_plan(self, env, plan):
+        '''
+        # This function executes the plan on the domain step by step
+        # I/P: environment instance and sequence of actions step by step
+        # O/P: SUCCESS/ FAIL
+        '''
+        obs = env.reset()
+        env.render()
+        rew_eps = 0
+        count = 0
+        for i in range (len(plan)):
+            obs, reward, done, info = env.step(plan[i])
+            rew_eps += reward
+            count += 1
+            # if args['render']:
+            env.render()
+            if done:
+                if env.inventory_items_quantity[env.goal_item_to_craft] >= 1: # success measure(goal achieved)
+                    # count = step
+                    # break
+                    return True, None
+            # if info.equals('FAIL'):
+            #     return False, plan[i]
+        return False, None
 
     def evaluate_policy():
         pass
-# if __name__ == main():
+if __name__ == '__main__':
+    brain1 = Brain()
+    brain1.run_brain()
+
 
 
 
