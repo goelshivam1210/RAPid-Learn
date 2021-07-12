@@ -52,11 +52,13 @@ Important References
 ##
 # make a new filoe called experiment.py which runs this script accordingly.
 
+import operator_generalization
 import os
 import re
 import sys
 import csv
 import math
+import time
 import copy
 import argparse
 import subprocess
@@ -70,6 +72,8 @@ from gym_novel_gridworlds.observation_wrappers import LidarInFront, AgentMap
 from gym_novel_gridworlds.novelty_wrappers import inject_novelty
 
 from learner import *
+# from pddl_generator import *
+from operator_generalization import *
 
 # import sys, string, os, arcgisscripting
 # os.system("C:/Documents and Settings/flow_model/flow.exe")
@@ -88,7 +92,7 @@ map = {'moveforward':'Forward',
 
 class Brain:
     
-    def __init__(self) -> None:
+    def __init__(self):
         pass
 
     def init_brain(self):
@@ -98,27 +102,50 @@ class Brain:
     def reset_brain(self):
         pass
 
-    def run_brain(self):
+    def run_brain(self, env_id):
         '''        
-            # this is the driving function of this class.
-            # call the environment and run the envuronment for x number of trials.
+            This is the driving function of this class.
+            Call the environment and run the environment for x number of trials.
         '''
+
+        # env = gym.make('NovelGridworld-Pogostick-v1')
+        # done = False
+        # while not done:
+        #     env.render()
+        #     action = env.action_space.sample()
+        #     obs, reward, done, info = env.step(action)
+
+        # env.close()
+        # sys.exit(1)
         env_id = 'NovelGridworld-Pogostick-v1' # hardcoded for now. will add the argparser later.
         env = self.instantiate_env(env_id, None, False) # make a new instance of the environment.
+        domain, problem = self.generate_pddls(env)
         plan, game_action_set = self.call_planner("domain", "problem", env) # get a plan
         # print("game action set aftert the planner = {}".format(game_action_set))
         result, failed_action = self.execute_plan(env, game_action_set)
+        
+        if not result:
+            learned_policy = self.call_learner(failed_action=failed_action)     
+            learned_operator =  self.call_operator_learner(failed_action, learned_policy)
+            # This will update the PDDLs with the new operator for planning.
+            domain, problem = self.generate_pddls(env, learned_operator, update_flag = True)
+            plan, game_action_set = self.call_planner("domain", "problem", env) # get a plan
+
+        
         if result:
             print("succesfully completed the task without any hassle!")
-        if not result: # if the results in plan failure.
+        # if not result: # if the results in plan failure.
             # call the learner with the failed operator
-            learned_operator = self.call_learner(failed_action=failed_action)
+
             # call the policy_learner to convert the policy to an operator.
+        # TODO
+        # store the learned policy in two buffers. Replay buffer and the 
+        # buffer which stores the transferrable policies.
+
+
+
 
         # run the planner's OP to the domain as the step
-        
-
-
         pass
 
 
@@ -135,9 +162,9 @@ class Brain:
 
     def call_planner(self, domain, problem, env):
         '''
-            # Given a domain and a problem file
-            # This function return the ffmetric Planner output.
-            # In the action format
+            Given a domain and a problem file
+            This function return the ffmetric Planner output.
+            In the action format
         '''
     
         run_script = "Metric-FF-v2.1/./ff -o "+domain+".pddl -f "+problem+".pddl -s 0"
@@ -148,8 +175,8 @@ class Brain:
     def _output_to_plan(self, output, env):
         '''
         Helper function to perform regex on the output from the planner.
-        I/P: Takes in the ffmetric output and
-        O/P: converts it to a action sequence list.
+        ### I/P: Takes in the ffmetric output and
+        ### O/P: converts it to a action sequence list.
         '''
 
         ff_plan = re.findall(r"\d+?: (.+)", output.lower()) # matches the string to find the plan bit from the ffmetric output.
@@ -178,13 +205,13 @@ class Brain:
 
     def instantiate_env(self, env_id, novelty_family, inject):
         '''
-        # This function instantiate a new instance of the environment for the agent to interact with.
-        # All the novelty is injected here.
-        # it takes the env_ID and the novelty arguemtns list as input.
-        # it returns an instance of the environment.
+         This function instantiate a new instance of the environment for the agent to interact with.
+         All the novelty is injected here.
+         ### I/P: it takes the env_ID and the novelty arguemtns list as input.
+         ### O/P: it returns an instance of the environment.
         '''
         env = gym.make(env_id)
-        env.render()
+        # env.render()
         # print ("env.actions_id = {}".format(env.actions_id))
         env.unbreakable_items.add('crafting_table') # Make crafting table unbreakable for easy solving of task.
         # env = LimitActions(env, {'Forward', 'Left', 'Right', 'Break', 'Craft_bow'}) # limit actions for easy training
@@ -196,7 +223,15 @@ class Brain:
             env = inject_novelty(env, novelty_family[0], novelty_family[1], novelty_family[2], novelty_family[3]) 
         return env
 
-    def call_operator_learner():
+    def call_operator_learner(self, failed_action, learned_policy):
+        '''
+        This function calls the operator learner class.
+        It converts the learned policy to the operator and updates the domain file of the PDDL representation.
+        '''
+
+        og = operator_generalization(failed_action, learned_policy)
+        # learned_operator = og.policy_to_action()
+        return og.policy_to_action()
         pass
     
     def inject_novelty():
@@ -205,19 +240,34 @@ class Brain:
     def run_trials():
         pass
 
+    def generate_pddls(self, env, learned_operator = None, update_flag = False):
+        pass
+    '''
+    This function generates the PDDLs from the current environment instance
+    ### I/P environment object
+    ### O/P returns pddl names if PDDL generated successfully, else returns false.
+    '''
+
+    ### Yash's functions will be integrated here.
+
+
+
 
     def execute_plan(self, env, plan):
         '''
-        # This function executes the plan on the domain step by step
-        # I/P: environment instance and sequence of actions step by step
-        # O/P: SUCCESS/ FAIL
+        This function executes the plan on the domain step by step
+        ### I/P: environment instance and sequence of actions step by step
+        ### O/P: SUCCESS/ FAIL with the failed action
         '''
+        print ("env.actions_id = {}".format(env.actions_id))
         obs = env.reset()
-        env.render()
+        # env.render()
         rew_eps = 0
         count = 0
         for i in range (len(plan)):
+            print ("Taking action = {}".format(list(env.actions_id.keys())[list(env.actions_id.values()).index(plan[i])]))
             obs, reward, done, info = env.step(plan[i])
+            # time.sleep(2)
             rew_eps += reward
             count += 1
             # if args['render']:
