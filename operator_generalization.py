@@ -1,5 +1,7 @@
-# author: Shivam Goel
-# contact: shivam.goel@tufts.edu
+'''
+Author: Shivam Goel
+Email: goelshivam1210@gmail.com
+'''
 
 # This class contains the implementation of the operator generalization component of the 
 # RapidL architecture
