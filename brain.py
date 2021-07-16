@@ -70,7 +70,7 @@ import gym_novel_gridworlds
 from gym_novel_gridworlds.wrappers import SaveTrajectories, LimitActions
 from gym_novel_gridworlds.observation_wrappers import LidarInFront, AgentMap
 from gym_novel_gridworlds.novelty_wrappers import inject_novelty
-
+from generate_pddl import *
 from learner import *
 # from pddl_generator import *
 from operator_generalization import *
@@ -102,7 +102,7 @@ class Brain:
     def reset_brain(self):
         pass
 
-    def run_brain(self, env_id):
+    def run_brain(self, env_id=None):
         '''        
             This is the driving function of this class.
             Call the environment and run the environment for x number of trials.
@@ -119,16 +119,18 @@ class Brain:
         # sys.exit(1)
         env_id = 'NovelGridworld-Pogostick-v1' # hardcoded for now. will add the argparser later.
         env = self.instantiate_env(env_id, None, False) # make a new instance of the environment.
-        domain, problem = self.generate_pddls(env)
+        obs = env.reset() 
+        self.generate_pddls(env)
         plan, game_action_set = self.call_planner("domain", "problem", env) # get a plan
         # print("game action set aftert the planner = {}".format(game_action_set))
-        result, failed_action = self.execute_plan(env, game_action_set)
+        # time.sleep(10000)
+        result, failed_action = self.execute_plan(env, game_action_set, obs)
         
         if not result:
             learned_policy = self.call_learner(failed_action=failed_action)     
             learned_operator =  self.call_operator_learner(failed_action, learned_policy)
             # This will update the PDDLs with the new operator for planning.
-            domain, problem = self.generate_pddls(env, learned_operator, update_flag = True)
+            self.generate_pddls(env, learned_operator, update_flag = True)
             plan, game_action_set = self.call_planner("domain", "problem", env) # get a plan
 
         
@@ -167,7 +169,7 @@ class Brain:
             In the action format
         '''
     
-        run_script = "Metric-FF-v2.1/./ff -o "+domain+".pddl -f "+problem+".pddl -s 0"
+        run_script = "Metric-FF-v2.1/./ff -o "+self.pddl_dir+os.sep+domain+".pddl -f "+self.pddl_dir+os.sep+problem+".pddl -s 0"
         output = subprocess.getoutput(run_script)
         plan, game_action_set = self._output_to_plan(output, env)
         return plan, game_action_set
@@ -188,7 +190,6 @@ class Brain:
         if "unsolvable" in output:
             print ("Plan not found with FF! Error: {}".format(
                 output))
-
         if ff_plan[-1] == "reach-goal":
             ff_plan = ff_plan[:-1]
         
@@ -241,7 +242,11 @@ class Brain:
         pass
 
     def generate_pddls(self, env, learned_operator = None, update_flag = False):
-        pass
+        self.pddl_dir = "PDDL"
+        os.makedirs(self.pddl_dir, exist_ok = True)
+        generate_prob_pddl(self.pddl_dir, env)
+        if learned_operator is not None:
+            generate_domain_pddl(self.pddl_dir, env, learned_operator)
     '''
     This function generates the PDDLs from the current environment instance
     ### I/P environment object
@@ -253,25 +258,27 @@ class Brain:
 
 
 
-    def execute_plan(self, env, plan):
+    def execute_plan(self, env, plan, obs):
         '''
         This function executes the plan on the domain step by step
         ### I/P: environment instance and sequence of actions step by step
         ### O/P: SUCCESS/ FAIL with the failed action
         '''
         print ("env.actions_id = {}".format(env.actions_id))
-        obs = env.reset()
+        # obs = env.reset()
         # env.render()
         rew_eps = 0
         count = 0
+        env.render()
         for i in range (len(plan)):
-            print ("Taking action = {}".format(list(env.actions_id.keys())[list(env.actions_id.values()).index(plan[i])]))
+            print ("Taking action {} = {}".format(i,list(env.actions_id.keys())[list(env.actions_id.values()).index(plan[i])]))
+            env.render()
             obs, reward, done, info = env.step(plan[i])
-            # time.sleep(2)
+            time.sleep(0.5)
             rew_eps += reward
             count += 1
             # if args['render']:
-            env.render()
+            # if i == 1:
             if done:
                 if env.inventory_items_quantity[env.goal_item_to_craft] >= 1: # success measure(goal achieved)
                     # count = step
