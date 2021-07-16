@@ -1,0 +1,18 @@
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+
+# IDE files (e.g. Jupyter Notebook, PyCharm)
+.ipynb_checkpoints
+.idea
+.vscode
+.flake8
+
+# folders
+PDDL/problem.pddl
+# executable dumps from Windows
+vim.exe.stackdump
+
+# MacOs files
+.DS_Store
