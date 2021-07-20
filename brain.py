@@ -95,6 +95,7 @@ map = {'moveforward':'Forward',
 class Brain:
     
     def __init__(self):
+        self.learner = None
         pass
 
     def init_brain(self):
@@ -130,7 +131,7 @@ class Brain:
         result, failed_action = self.execute_plan(env, game_action_set, obs)
         
         if not result:
-            learned_policy = self.call_learner(failed_action=failed_action)     
+            learned_policy = self.call_learner(failed_action=failed_action, env=env)
             learned_operator =  self.call_operator_learner(failed_action, learned_policy)
             # This will update the PDDLs with the new operator for planning.
             self.generate_pddls(env, learned_operator, update_flag = True)
@@ -154,12 +155,25 @@ class Brain:
         pass
 
 
-    def call_learner(self, failed_action):
+    def call_learner(self, failed_action, env=None):
         # This function instantiates a RL learner to start finding interesting states to send 
         # to the planner
-        # 
-        learn_operator = Learner(failed_action)
-        return learn_operator
+        #
+
+        if env is None:
+            env_id = 'NovelGridworld-Pogostick-v1'  # hardcoded for now. will add the argparser later.
+            env = self.instantiate_env(env_id, None, False)  # make a new instance of the environment.
+            obs = env.reset()
+
+        #TODO: If we want the learner to perform training on the failed action for N episodes,
+        #        then we would have to reset to the failed step between letting the RL agent take over.
+        #      Took out planning stuff so it wouldn't know how to reach a latter plan step to start
+        #        learning a policy from
+        if self.learner is None:
+            self.learner = Learner(failed_action, env)
+        else:
+            self.learner.learn_state()
+        return self.learner
 
 
         # 
@@ -225,7 +239,7 @@ class Brain:
         # print ("env.actions_id = {}".format(env.actions_id))
         env.unbreakable_items.add('crafting_table') # Make crafting table unbreakable for easy solving of task.
         # env = LimitActions(env, {'Forward', 'Left', 'Right', 'Break', 'Craft_bow'}) # limit actions for easy training
-        env = LidarInFront(env) # generate the observation space using LIDAR sensors
+        # env = LidarInFront(env) # generate the observation space using LIDAR sensors
         # print(env.unbreakable_items)
         env.reward_done = 1000
         env.reward_intermediate = 50
@@ -304,7 +318,9 @@ class Brain:
         pass
 if __name__ == '__main__':
     brain1 = Brain()
-    brain1.run_brain()
+    #testing RL connection
+    learned_policy = brain1.call_learner(failed_action='break minecraft:log')
+    # brain1.run_brain()
 
 
 
