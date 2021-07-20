@@ -4,226 +4,193 @@
 
 
 (:types
+    plank - breakable
+    plank - placeable
+    wall - physobj
+    breakable - physobj
+    entity - physobj
+    plank - physobj
+    tree_tap - craftable
+    placeable - physobj
+    crafting_table - physobj
+    tree_tap - physobj
+    plank - craftable
+    coord - concept
+    craftable - physobj
+    crafting_table - breakable
+    var - object
+    crafting_table - placeable
+    tapped_log - physobj
+    concept - var
+    rubber - physobj
+    physobj - physical
     actor - physical
-    world - location
-    material - physical
-    location - object
-    physical - object
-    direction - object
+    pogo_stick - physobj
+    stick - physobj
+    tree_log - physobj
+    pogo_stick - craftable
+    stick - craftable
+    physical - var
+    tree_log - breakable
+    air - physobj
+    tree_log - placeable
 )
 
 (:predicates
-    (crafttreetapina ?v0 - material)
-    (isBlock ?v0 - physical ?v1 - location)
-    (permeable ?v0 - material)
-    (craftplanksina ?v0 - material)
-    (crafttreetapouta ?v0 - material)
-    (craftpogostickouta ?v0 - material)
-    (crafttreetapinb ?v0 - material)
-    (craftplanksouta ?v0 - material)
-    (holding ?v0 - material)
-    (crafter ?v0 - material)
-    (neighbors ?v0 - world ?v1 - world)
-    (unbreakable ?v0 - material)
-    (orientation ?v0 - physical ?v1 - direction)
-    (clockwise ?v0 - direction ?v1 - direction)
-    (tapper ?v0 - material)
-    (craftsticksina ?v0 - material)
-    (opposite ?v0 - direction ?v1 - direction)
-    (adjacent ?v0 - world ?v1 - world ?v2 - direction)
-    (tapped ?v0 - location)
-    (at ?v0 - physical ?v1 - location)
-    (tapout ?v0 - material)
-    (craftpogostickinb ?v0 - material)
-    (isItem ?v0 - physical ?v1 - location)
-    (craftsticksouta ?v0 - material)
-    (craftpogostickinc ?v0 - material)
-    (tappable ?v0 - material)
-    (craftpogostickina ?v0 - material)
+    (holding ?v0 - physobj)
+    (floating ?v0 - physobj)
+    (near ?v0 - physobj)
 )
 
 (:functions
-    (inventory ?v0 - material)
+    (world ?v0 - object)
+    (inventory ?v0 - object)
+    ; (totalcost)
 )
 
-(:action breakblock
-    :parameters    (?actor - actor ?world01 - world ?direction01 - direction ?material01 - material ?world02 - world ?material02 - material )
+(:action crafttree_tap
+    :parameters    ()
     :precondition  (and
-        (at ?actor ?world01)
-        (orientation ?actor ?direction01)
-        (adjacent ?world01 ?world02 ?direction01)
-        (at ?material01 ?world02)
-        (not (unbreakable ?material01))
-        (permeable ?material02)
-        (isBlock ?material01 ?world02)
+        (>= ( inventory plank) 5)
+        (>= ( inventory stick) 1)
+        (near crafting_table)
     )
     :effect  (and
-        (not (at ?material01 ?world02))
-        (at ?material02 ?world02)
-        (increase ( inventory ?material01) 1)
-        (not (isBlock ?material01 ?world02))
-        (isBlock ?material02 ?world02)
+        (increase ( inventory tree_tap) 1)
+        (decrease ( inventory plank) 5)
+        (decrease ( inventory stick) 1)
+    )
+)
+
+(:action approach
+    :parameters    (?physobj01 - physobj ?physobj02 - physobj )
+    :precondition  (and
+        (>= ( world ?physobj02) 1)
+        (near ?physobj01)
+    )
+    :effect  (and
+        (near ?physobj02)
+        (not (near ?physobj01))
+    )
+)
+
+(:action deselect
+    :parameters    (?physobj01 - physobj )
+    :precondition  (and
+        (>= ( inventory ?physobj01) 1)
+        (holding ?physobj01)
+    )
+    :effect  (and
+        (not (holding ?physobj01))
+        (holding air)
+    )
+)
+
+(:action pickup
+    :parameters    (?physobj01 - physobj ?physobj02 - physobj )
+    :precondition  (and
+        (floating ?physobj01)
+        (near ?physobj02)
+    )
+    :effect  (and
+        (not (floating ?physobj01))
+        (not (near ?physobj01))
+        (not (near ?physobj02))
+        (near air)
+        (increase ( inventory ?physobj01) 1)
+        (decrease ( world ?physobj01) 1)
+    )
+)
+
+(:action craftplank
+    :parameters    ()
+    :precondition  (>= ( inventory tree_log) 1)
+    :effect  (and
+        (increase ( inventory plank) 4)
+        (decrease ( inventory tree_log) 1)
+    )
+)
+
+(:action place
+    :parameters    (?placeable01 - placeable )
+    :precondition  (and
+        (near air)
+        (>= ( inventory ?placeable01) 1)
+    )
+    :effect  (and
+        (near ?placeable01)
+        (not (near air))
+        (increase ( world ?placeable01) 1)
+        (decrease ( inventory ?placeable01) 1)
+        (decrease ( world air) 1)
+    )
+)
+
+(:action break
+    :parameters    (?breakable01 - breakable )
+    :precondition  (and
+        (near ?breakable01)
+        (not (floating ?breakable01))
+    )
+    :effect  (and
+        (near air)
+        (not (near ?breakable01))
+        (increase ( inventory ?breakable01) 1)
+        (increase ( world air) 1)
+        (decrease ( world ?breakable01) 1)
+    )
+)
+
+(:action craftstick
+    :parameters    ()
+    :precondition  (>= ( inventory plank) 2)
+    :effect  (and
+        (increase ( inventory stick) 4)
+        (decrease ( inventory plank) 2)
     )
 )
 
 (:action extractrubber
-    :parameters    (?actor01 - actor ?world01 - world ?direction01 - direction ?world02 - world ?material01 - material ?world03 - world ?material02 - material )
+    :parameters    (?tree_log01 - tree_log )
     :precondition  (and
-        (at ?actor01 ?world01)
-        (orientation ?actor01 ?direction01)
-        (adjacent ?world01 ?world02 ?direction01)
-        (tapped ?world02)
-        (tappable ?material02)
-        (at ?material02 ?world03)
-        (adjacent ?world02 ?world03 ?direction01)
-        (tapout ?material01)
+        (>= ( inventory tree_tap) 1)
+        (near air)
     )
-    :effect  (increase ( inventory ?material01) 1)
+    :effect  (and
+        (not (near air))
+        (near tree_tap)
+        (increase ( inventory rubber) 1)
+        (decrease ( inventory tree_tap) 1)
+        (decrease ( world air) 1)
+        (increase ( world tree_tap) 1)
+    )
+)
+
+(:action craftpogo_stick
+    :parameters    ()
+    :precondition  (and
+        (>= ( inventory plank) 2)
+        (>= ( inventory stick) 4)
+        (>= ( inventory rubber) 1)
+        (near crafting_table)
+    )
+    :effect  (and
+        (increase ( inventory pogo_stick) 1)
+        (decrease ( inventory plank) 2)
+        (decrease ( inventory stick) 4)
+        (decrease ( inventory rubber) 1)
+    )
 )
 
 (:action select
-    :parameters    (?material01 - material ?material02 - material )
+    :parameters    (?physobj01 - physobj )
     :precondition  (and
-        (holding ?material01)
-        (>= ( inventory ?material02) 1)
+        (>= ( inventory ?physobj01) 1)
+        (holding air)
     )
     :effect  (and
-        (holding ?material02)
-        (not (holding ?material01))
-    )
-)
-
-(:action crafttreetap
-    :parameters    (?material01 - material ?material02 - material ?material03 - material ?actor01 - actor ?world01 - world ?world02 - world ?direction01 - direction ?material04 - material )
-    :precondition  (and
-        (>= ( inventory ?material01) 1)
-        (>= ( inventory ?material02) 5)
-        (crafttreetapina ?material01)
-        (crafttreetapinb ?material02)
-        (crafttreetapouta ?material03)
-        (at ?actor01 ?world01)
-        (orientation ?actor01 ?direction01)
-        (adjacent ?world01 ?world02 ?direction01)
-        (at ?material04 ?world02)
-        (crafter ?material04)
-    )
-    :effect  (and
-        (decrease ( inventory ?material01) 1)
-        (decrease ( inventory ?material02) 5)
-        (increase ( inventory ?material03) 1)
-    )
-)
-
-(:action turnright
-    :parameters    (?actor - actor ?direction01 - direction ?direction02 - direction )
-    :precondition  (and
-        (orientation ?actor ?direction01)
-        (clockwise ?direction01 ?direction02)
-    )
-    :effect  (and
-        (orientation ?actor ?direction02)
-        (not (orientation ?actor ?direction01))
-    )
-)
-
-(:action placetreetap
-    :parameters    (?actor01 - actor ?world01 - world ?world02 - world ?direction01 - direction ?world03 - world ?direction02 - direction ?material01 - material ?material02 - material ?material03 - material )
-    :precondition  (and
-        (at ?actor01 ?world01)
-        (orientation ?actor01 ?direction01)
-        (adjacent ?world01 ?world02 ?direction01)
-        (adjacent ?world02 ?world03 ?direction02)
-        (at ?material01 ?world02)
-        (at ?material02 ?world03)
-        (permeable ?material01)
-        (tappable ?material02)
-        (tapper ?material03)
-        (>= ( inventory ?material03) 1)
-    )
-    :effect  (and
-        (decrease ( inventory ?material03) 1)
-        (at ?material03 ?world02)
-        (isBlock ?material03 ?world02)
-        (not (at ?material01 ?world02))
-        (not (isBlock ?material01 ?world02))
-        (tapped ?world02)
-    )
-)
-
-(:action moveforward
-    :parameters    (?actor - actor ?world01 - world ?world02 - world ?direction01 - direction ?material01 - material )
-    :precondition  (and
-        (at ?actor ?world01)
-        (orientation ?actor ?direction01)
-        (adjacent ?world01 ?world02 ?direction01)
-        (at ?material01 ?world02)
-        (permeable ?material01)
-    )
-    :effect  (and
-        (at ?actor ?world02)
-        (not (at ?actor ?world01))
-    )
-)
-
-(:action craftpogostick
-    :parameters    (?material01 - material ?material02 - material ?material03 - material ?material04 - material ?actor01 - actor ?world01 - world ?direction01 - direction ?world02 - world ?material05 - material )
-    :precondition  (and
-        (>= ( inventory ?material01) 4)
-        (>= ( inventory ?material02) 2)
-        (>= ( inventory ?material03) 1)
-        (craftpogostickina ?material01)
-        (craftpogostickinb ?material02)
-        (craftpogostickinc ?material03)
-        (craftpogostickouta ?material04)
-        (at ?actor01 ?world01)
-        (orientation ?actor01 ?direction01)
-        (adjacent ?world01 ?world02 ?direction01)
-        (at ?material05 ?world02)
-        (crafter ?material05)
-    )
-    :effect  (and
-        (decrease ( inventory ?material01) 4)
-        (decrease ( inventory ?material02) 2)
-        (decrease ( inventory ?material03) 1)
-        (increase ( inventory ?material04) 1)
-    )
-)
-
-(:action craftplanks
-    :parameters    (?material01 - material ?material02 - material )
-    :precondition  (and
-        (>= ( inventory ?material01) 1)
-        (craftplanksina ?material01)
-        (craftplanksouta ?material02)
-    )
-    :effect  (and
-        (decrease ( inventory ?material01) 1)
-        (increase ( inventory ?material02) 4)
-    )
-)
-
-(:action craftsticks
-    :parameters    (?material01 - material ?material02 - material )
-    :precondition  (and
-        (>= ( inventory ?material01) 2)
-        (craftsticksina ?material01)
-        (craftsticksouta ?material02)
-    )
-    :effect  (and
-        (decrease ( inventory ?material01) 2)
-        (increase ( inventory ?material02) 4)
-    )
-)
-
-(:action turnleft
-    :parameters    (?actor - actor ?direction01 - direction ?direction02 - direction )
-    :precondition  (and
-        (orientation ?actor ?direction01)
-        (clockwise ?direction02 ?direction01)
-    )
-    :effect  (and
-        (orientation ?actor ?direction02)
-        (not (orientation ?actor ?direction01))
+        (holding ?physobj01)
+        (not (holding air))
     )
 )
 
