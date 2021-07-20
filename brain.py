@@ -67,6 +67,8 @@ import gym
 import numpy as np
 import gym_novel_gridworlds
 
+from utils import AStarOperator, AStarPlanner
+
 from gym_novel_gridworlds.wrappers import SaveTrajectories, LimitActions
 from gym_novel_gridworlds.observation_wrappers import LidarInFront, AgentMap
 from gym_novel_gridworlds.novelty_wrappers import inject_novelty
@@ -81,13 +83,13 @@ from operator_generalization import *
 map = {'moveforward':'Forward',
         'turnleft':'Left',
         'turnright':'Right',
-        'breakblock': 'Break',
-        'placetreetap':'Place_tree_tap',
+        'break': 'Break',
+        'place':'Place_tree_tap',
         'extractrubber':'Extract_rubber',
-        'craftplanks':'Craft_plank',
-        'craftsticks':'Craft_stick',
-        'crafttreetap': 'Craft_tree_tap',
-        'craftpogostick': 'Craft_pogo_stick',
+        'craftplank':'Craft_plank',
+        'craftstick':'Craft_stick',
+        'crafttree_tap': 'Craft_tree_tap',
+        'craftpogo_stick': 'Craft_pogo_stick',
         'select': 'Select'}
 
 class Brain:
@@ -124,6 +126,7 @@ class Brain:
         plan, game_action_set = self.call_planner("domain", "problem", env) # get a plan
         # print("game action set aftert the planner = {}".format(game_action_set))
         # time.sleep(10000)
+
         result, failed_action = self.execute_plan(env, game_action_set, obs)
         
         if not result:
@@ -182,9 +185,13 @@ class Brain:
         '''
 
         ff_plan = re.findall(r"\d+?: (.+)", output.lower()) # matches the string to find the plan bit from the ffmetric output.
+        print ("ffplan = {}".format(ff_plan))
         action_set = []
         for i in range (len(ff_plan)):
-            action_set.append(ff_plan[i].split(" ")[0])
+            if ff_plan[i].split(" ")[0] == "approach":
+                action_set.append(ff_plan[i])
+            else:
+                action_set.append(ff_plan[i].split(" ")[0])
         # print (ff_plan[0].split())
 
         if "unsolvable" in output:
@@ -193,12 +200,14 @@ class Brain:
         if ff_plan[-1] == "reach-goal":
             ff_plan = ff_plan[:-1]
         
-
+        print ("game action set  = {}".format(action_set))
         # convert the action set to the actions permissable in the domain
         game_action_set = copy.deepcopy(action_set)
         # print ("game action set = {}".format(game_action_set))
         for i in range(len(game_action_set)):
-            game_action_set[i] = map[game_action_set[i]]
+            if game_action_set[i].split(" ")[0] != "approach":
+                game_action_set[i] = map[game_action_set[i]]
+        print ("game action set = {}".format(game_action_set))
         for i in range(len(game_action_set)):
             game_action_set[i] = env.actions_id[game_action_set[i]]
         
@@ -273,6 +282,9 @@ class Brain:
         for i in range (len(plan)):
             print ("Taking action {} = {}".format(i,list(env.actions_id.keys())[list(env.actions_id.values()).index(plan[i])]))
             env.render()
+            if "approach" in plan[i]:
+                # call the motion planner here to generate the lower level actions
+                sub_plan = run_motion_planner(plan[i])
             obs, reward, done, info = env.step(plan[i])
             time.sleep(0.5)
             rew_eps += reward
