@@ -7,9 +7,6 @@
 
 Important References
 
-
-
-
 '''
 
 # load an environment.
@@ -65,6 +62,7 @@ import subprocess
 
 import gym
 import numpy as np
+from scipy.spatial import distance
 import gym_novel_gridworlds
 
 from utils import AStarOperator, AStarPlanner
@@ -96,6 +94,7 @@ class Brain:
     
     def __init__(self):
         self.learner = None
+        # self.astar = AStarPlanner()
         pass
 
     def init_brain(self):
@@ -129,6 +128,9 @@ class Brain:
         # time.sleep(10000)
 
         result, failed_action = self.execute_plan(env, game_action_set, obs)
+        print ("result = \n {}  \n Failed Action = \n {}".format(result, failed_action))
+        # import sys
+        # sys.exit(1)
         
         if not result:
             learned_policy = self.call_learner(failed_action=failed_action, env=env)
@@ -223,7 +225,8 @@ class Brain:
                 game_action_set[i] = map[game_action_set[i]]
         print ("game action set = {}".format(game_action_set))
         for i in range(len(game_action_set)):
-            game_action_set[i] = env.actions_id[game_action_set[i]]
+            if game_action_set[i] in map:
+                game_action_set[i] = env.actions_id[game_action_set[i]]
         
         return action_set, game_action_set
 
@@ -258,6 +261,96 @@ class Brain:
         return og.policy_to_action()
         pass
     
+    def run_motion_planner(self, env, action):
+        # Instantiation of the AStar Planner with the 
+        # ox = 
+        """
+        Initialize grid map for a star planning
+
+        ox: x position list of Obstacles [m]
+        oy: y position list of Obstacles [m]
+        resolution: grid resolution [m]
+        rr: robot radius[m]
+        """
+        # Sample goal from items_locs
+        # start position
+        # x,z,y
+        sx = env.agent_location[0]
+        sy = env.agent_location[1]
+        so = env.agent_facing_str
+        print ("agent is at {}, {} and facing {}".format(sx, sy, so))
+        print (env.map)
+        binary_map = copy.deepcopy(env.map)
+        binary_map[binary_map > 0] = 1
+        print ("binary map = {}".format(binary_map))
+        grid_size = 1.0
+        robot_radius = 0.9
+
+        # obstacle positions
+        ox, oy = [], []
+        for r in range(len(binary_map[0])):
+            for c in range(len(binary_map[1])):
+                if binary_map[r][c] == 1:
+                    ox.append(c)
+                    oy.append(r)
+        astar_planner = AStarPlanner(ox, oy, grid_size, robot_radius)
+        astar_operator = AStarOperator(name = None, goal_type=None, effect_set=None)
+
+        #  """
+        # A star path search
+
+        # input:
+        #     s_x: start x position [m]
+        #     s_y: start y position [m]
+        #     gx: goal x position [m]
+        #     gy: goal y position [m]
+
+        # output:
+        #     rx: x position list of the final path
+        #     ry: y position list of the final path
+        # """
+        # find the random location of the loc2 in the map.
+        loc2 = action.split(" ")[-1] # last value of the approach action gives the location to go to
+        print ("location to go to = {}".format(loc2))
+        gx, gy = sx, sy
+        if loc2 in env.items:
+            # get the items_id in the environment
+            # find the item in the map
+            print ("ID we are looking for = {}".format(env.items_id[loc2]))
+            # print (np.where(env.items_id[loc2], x = env.map)[0].T)
+            locs = np.asarray((np.where(env.map == env.items_id[loc2]))).T
+            # for i in range (gx.shape[0]):
+                # distances = distance.euclidean(gx[i], env.agent_location)
+            print ("\n",locs)
+            gx, gy = locs[0][0], locs[0][1]
+            print ("\n ", gx, gy)
+        # Can't actually go into the item, so randomly sample point next to it to go to
+        relcoord = np.random.randint(4)
+        # rx, ry = [], []
+        # num_attempts = 0
+        # while len(rx) < 2 and num_attempts < 4:
+        gx_ = gx
+        gy_ = gy
+        if relcoord == 0:
+            gx_ = gx + 1
+            ro = 'WEST'
+        elif relcoord == 1:
+            gx_ = gx - 1
+            ro = 'EAST'
+        elif relcoord == 2:
+            gy_ = gy + 1
+            ro = 'NORTH'
+        elif relcoord == 3:
+            gy_ = gy - 1
+            ro = 'SOUTH'
+
+        rxs, rys = astar_planner.planning(sx, sy, gx_, gy_)
+        print ("rxs and rys generated from the plan = {} {}".format(rxs, rys))
+        sx, sy, plan = astar_operator.generateActionsFromPlan(sx, sy, so, rxs, rys, ro)
+        return plan
+        ## rx and ry have all the x, y points to use and         
+        # a_star = AStarPlanner(ox, oy, grid_size, robot_radius)
+    
     def inject_novelty():
         pass
     
@@ -287,20 +380,44 @@ class Brain:
         ### I/P: environment instance and sequence of actions step by step
         ### O/P: SUCCESS/ FAIL with the failed action
         '''
-        print ("env.actions_id = {}".format(env.actions_id))
+        # print ("\n plan we get to execute = {}".format(plan))
+        # print ("\n env.actions_id = {}".format(env.actions_id))
         # obs = env.reset()
         # env.render()
         rew_eps = 0
         count = 0
         env.render()
-        for i in range (len(plan)):
-            print ("Taking action {} = {}".format(i,list(env.actions_id.keys())[list(env.actions_id.values()).index(plan[i])]))
+        matching = [s for s in plan if "approach" in s]
+        print ("matching = {}".format(matching))
+        for i in range (len(plan)-len(matching)):
+            # print ("Taking action {} = {}".format(i,list(env.actions_id.keys())[list(env.actions_id.values()).index(plan[i])]))
             env.render()
+            sub_plan = []
+            # print ("plan[i] = {}".format(plan[i]))
             if "approach" in plan[i]:
                 # call the motion planner here to generate the lower level actions
-                sub_plan = run_motion_planner(plan[i])
-            obs, reward, done, info = env.step(plan[i])
-            time.sleep(0.5)
+                sub_plan = self.run_motion_planner(env, plan[i])
+                print ("\n sub plan = {}".format(sub_plan))
+                plan = np.delete(plan, i) # remove that item from the plan
+            # now execute the sub-plan
+            for j in range (len(sub_plan)):
+                # action_id = env.actions_id[sub_plan[j]]
+                print ("Executing {} action from sub plan in the environment".format(env.actions_id[sub_plan[j]]))
+                obs, reward, done, info = env.step(env.actions_id[sub_plan[j]])
+                env.render()
+                rew_eps += reward
+                count += 1
+                # if args['render']:
+                # if i == 1:
+                if done:
+                    if env.inventory_items_quantity[env.goal_item_to_craft] >= 1: # success measure(goal achieved)
+                        # count = step
+                        # break
+                        return True, None
+            # go back to the planner's normal plan   
+            print ("Executing {} action from main plan in the environment".format(env.actions_id[plan[i]]))
+            obs, reward, done, info = env.step(env.actions_id[plan[i]])
+            # time.sleep(0.2)
             rew_eps += reward
             count += 1
             # if args['render']:
@@ -319,8 +436,8 @@ class Brain:
 if __name__ == '__main__':
     brain1 = Brain()
     #testing RL connection
-    learned_policy = brain1.call_learner(failed_action='break minecraft:log')
-    # brain1.run_brain()
+    # learned_policy = brain1.call_learner(failed_action='break minecraft:log')
+    brain1.run_brain()
 
 
 

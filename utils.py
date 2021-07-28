@@ -391,7 +391,7 @@ class AStarOperator:
         self.plan = []
         self.action_step = 0
         self.effect_set = effect_set
-        self.create_check_success_func = get_create_success_func_from_predicate_set(effect_set)
+        # self.create_check_success_func = get_create_success_func_from_predicate_set(effect_set)
         self.check_success_func = None
 
     def reset(self, obs, info, env):
@@ -658,11 +658,12 @@ class AStarOperator:
             else:
                 print("error in path plan")
                 return sx, sy
-            self.plan.append('MOVE w')
+            self.plan.append('Forward')
+
             # self.env.step(self.env.actions_id['MOVE w'])
         # Rotate to face object at the end
         self.rotate_agent(orientation, ro)
-        return sx, sy
+        return sx, sy, self.plan
 
     def rotate_agent(self, start_o, goal_o):
         dir_vals = {'NORTH': 0, 'EAST': 1, 'SOUTH': 2, 'WEST': 3}
@@ -672,16 +673,23 @@ class AStarOperator:
         if num_rots == 0:
             return
         elif num_rots == 1 or num_rots == -3:
-            self.plan.append('TURN 90')
+            # self.plan.append('TURN 90')
+            self.plan.append('Right')
+
             # self.env.step(self.env.actions_id['TURN 90'])
         elif num_rots == 2 or num_rots == -2:
-            self.plan.append('TURN 90')
-            self.plan.append('TURN 90')
+            # self.plan.append('TURN 90')
+            self.plan.append('Right')
+
+            # self.plan.append('TURN 90')
+            self.plan.append('Right')
+
             # self.env.step(self.env.actions_id['TURN 90'])
             # self.env.step(self.env.actions_id['TURN 90'])
         elif num_rots == 3 or num_rots == -1:
             # self.env.step(self.env.actions_id['TURN -90'])
-            self.plan.append('TURN -90')
+            # self.plan.append('TURN -90')
+            self.plan.append('Left')
 
     def get_action(self):
         # Returning none is indication that sequence is done
