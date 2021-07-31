@@ -78,17 +78,28 @@ from operator_generalization import *
 # import sys, string, os, arcgisscripting
 # os.system("C:/Documents and Settings/flow_model/flow.exe")
 # dictionary that maps the PDDL actions to the game engine permissable actions.
-map = {'moveforward':'Forward',
+action_map = {'moveforward':'Forward',
         'turnleft':'Left',
         'turnright':'Right',
         'break': 'Break',
         'place':'Place_tree_tap',
         'extractrubber':'Extract_rubber',
-        'craftplank':'Craft_plank',
+        'craftplank': 'Craft_plank',
         'craftstick':'Craft_stick',
         'crafttree_tap': 'Craft_tree_tap',
         'craftpogo_stick': 'Craft_pogo_stick',
         'select': 'Select'}
+
+# PDDL to NG item name map
+# item_map = {'tree_log': 'minecraft:log',
+#             'plank': 'minecraft:plank',
+#             'stick': 'minecraft:stick',
+#             'crafting_table': 'minecraft:crafting_table',
+#             'tree_tap': 'polycraft:tree_tap',
+#             'rubber': 'polycraft:sack_polyisoprene_pellets',
+#             'pogo_stick': 'polycraft:wooden_pogo_stick',
+#             'air': 'minecraft:air',
+#             'wall': 'minecraft:bedrock'}
 
 class Brain:
     
@@ -133,6 +144,10 @@ class Brain:
         # sys.exit(1)
         
         if not result:
+            # EW: failed action currently returns None so this doesn't work
+            # Have to set failed action to operator string which has matching success effects, e.g.
+                # failed_action = "approach crafting_table tree_log"
+                # failed_action = "Break tree_log"
             learned_policy = self.call_learner(failed_action=failed_action, env=env)
             learned_operator =  self.call_operator_learner(failed_action, learned_policy)
             # This will update the PDDLs with the new operator for planning.
@@ -222,10 +237,10 @@ class Brain:
         # print ("game action set = {}".format(game_action_set))
         for i in range(len(game_action_set)):
             if game_action_set[i].split(" ")[0] != "approach":
-                game_action_set[i] = map[game_action_set[i]]
+                game_action_set[i] = action_map[game_action_set[i]]
         print ("game action set = {}".format(game_action_set))
         for i in range(len(game_action_set)):
-            if game_action_set[i] in map:
+            if game_action_set[i] in action_map:
                 game_action_set[i] = env.actions_id[game_action_set[i]]
         
         return action_set, game_action_set
@@ -275,14 +290,14 @@ class Brain:
         # Sample goal from items_locs
         # start position
         # x,z,y
-        sx = env.agent_location[0]
-        sy = env.agent_location[1]
+        sx = env.agent_location[1]
+        sy = env.agent_location[0]
         so = env.agent_facing_str
-        print ("agent is at {}, {} and facing {}".format(sx, sy, so))
-        print (env.map)
+        print ("agent is at {}, {} and facing {}".format(sy, sx, so))
+        # print (env.map)
         binary_map = copy.deepcopy(env.map)
         binary_map[binary_map > 0] = 1
-        print ("binary map = {}".format(binary_map))
+        # print ("binary map = {}".format(binary_map))
         grid_size = 1.0
         robot_radius = 0.9
 
@@ -311,19 +326,26 @@ class Brain:
         # """
         # find the random location of the loc2 in the map.
         loc2 = action.split(" ")[-1] # last value of the approach action gives the location to go to
+        # if loc2 in item_map:
+        #     loc2 = item_map[loc2]
+        # else:
+        #     print("ERROR: approach goal {} is not in item map {}".format(loc2, item_map))
+        #     quit()
         print ("location to go to = {}".format(loc2))
         gx, gy = sx, sy
+        # EW: motion planning issue is loc2 (e.g. 'tree_log') is not found in env.items
+        #     So this problem also stems from the interfacing issues
         if loc2 in env.items:
             # get the items_id in the environment
             # find the item in the map
-            print ("ID we are looking for = {}".format(env.items_id[loc2]))
+            # print ("ID we are looking for = {}".format(env.items_id[loc2]))
             # print (np.where(env.items_id[loc2], x = env.map)[0].T)
             locs = np.asarray((np.where(env.map == env.items_id[loc2]))).T
             # for i in range (gx.shape[0]):
                 # distances = distance.euclidean(gx[i], env.agent_location)
-            print ("\n",locs)
-            gx, gy = locs[0][0], locs[0][1]
-            print ("\n ", gx, gy)
+            # print ("\n",locs)
+            gx, gy = locs[0][1], locs[0][0]
+            # print ("\n ", gx, gy)
         # Can't actually go into the item, so randomly sample point next to it to go to
         relcoord = np.random.randint(4)
         # rx, ry = [], []
@@ -345,7 +367,8 @@ class Brain:
             ro = 'SOUTH'
 
         rxs, rys = astar_planner.planning(sx, sy, gx_, gy_)
-        print ("rxs and rys generated from the plan = {} {}".format(rxs, rys))
+        # print("Goal location: {} {}".format(gx_, gy_) )
+        # print ("rxs and rys generated from the plan = {} {}".format(rxs, rys))
         sx, sy, plan = astar_operator.generateActionsFromPlan(sx, sy, so, rxs, rys, ro)
         return plan
         ## rx and ry have all the x, y points to use and         
@@ -359,10 +382,10 @@ class Brain:
 
     def generate_pddls(self, env, learned_operator = None, update_flag = False):
         self.pddl_dir = "PDDL"
-        os.makedirs(self.pddl_dir, exist_ok = True)
-        generate_prob_pddl(self.pddl_dir, env)
-        if learned_operator is not None:
-            generate_domain_pddl(self.pddl_dir, env, learned_operator)
+        # os.makedirs(self.pddl_dir, exist_ok = True)
+        # generate_prob_pddl(self.pddl_dir, env)
+        # if learned_operator is not None:
+        #     generate_domain_pddl(self.pddl_dir, env, learned_operator)
     '''
     This function generates the PDDLs from the current environment instance
     ### I/P environment object
@@ -390,6 +413,7 @@ class Brain:
         matching = [s for s in plan if "approach" in s]
         print ("matching = {}".format(matching))
         for i in range (len(plan)-len(matching)):
+            print("Executing plan_step: ", plan[i])
             # print ("Taking action {} = {}".format(i,list(env.actions_id.keys())[list(env.actions_id.values()).index(plan[i])]))
             env.render()
             sub_plan = []
@@ -397,12 +421,12 @@ class Brain:
             if "approach" in plan[i]:
                 # call the motion planner here to generate the lower level actions
                 sub_plan = self.run_motion_planner(env, plan[i])
-                print ("\n sub plan = {}".format(sub_plan))
+                # print ("\n sub plan = {}".format(sub_plan))
                 plan = np.delete(plan, i) # remove that item from the plan
             # now execute the sub-plan
             for j in range (len(sub_plan)):
                 # action_id = env.actions_id[sub_plan[j]]
-                print ("Executing {} action from sub plan in the environment".format(env.actions_id[sub_plan[j]]))
+                # print ("Executing {} action from sub plan in the environment".format(env.actions_id[sub_plan[j]]))
                 obs, reward, done, info = env.step(env.actions_id[sub_plan[j]])
                 env.render()
                 rew_eps += reward
@@ -414,7 +438,7 @@ class Brain:
                         # count = step
                         # break
                         return True, None
-            # go back to the planner's normal plan   
+            # go back to the planner's normal plan
             print ("Executing {} action from main plan in the environment".format(env.actions_id[plan[i]]))
             obs, reward, done, info = env.step(env.actions_id[plan[i]])
             # time.sleep(0.2)

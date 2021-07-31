@@ -9,7 +9,7 @@ import math
 import tensorflow as tf
 import os
 
-from NGLearner_util import PolycraftDynamicsChecker, get_create_success_func_from_predicate_set, default_param_dict, GridworldMDP, PolycraftMDP, add_reset_probas, informed_random_action, check_permissible, update_reset_probas, reset_to_interesting_state
+from NGLearner_util import PolycraftDynamicsChecker, get_create_success_func_from_predicate_set, default_param_dict, GridworldMDP, add_reset_probas, informed_random_action, check_permissible, update_reset_probas, reset_to_interesting_state
 from learning.dqn import DQNLambda_Agent
 from polycraft_tufts.rl_agent.dqn_lambda.learning.utils import make_session
 
@@ -21,20 +21,29 @@ class Learner:
         # self.env = PolycraftMDP(env, False, render=False)
         # self.env.run_SENSE_ALL_and_update()
         # self.env.generate_obs_action_spaces()
-        self.env = GridworldMDP(env, False, render=False)
+        self.env = GridworldMDP(env, False, render=True)
+        if failed_action == "Break":
+            failed_action = "Break tree_log"
         self.failed_action = failed_action
 
-        #TODO: Also pass in failed effects with action using operator definitions,
+        #TODO: Also (or just) pass in failed effects with action using operator definitions,
         #      using hardcoded map for now
         operator_map = {
-            "moveTo minecraft:log": ['near minecraft:log'],
-            "moveTo minecraft:crafting_table": ['near minecraft:crafting_table'],
-            "break minecraft:log": ['increase inventory_log 1'],
-            "craft polycraft:tree_tap": ['increase inventory polycraft:tree_tap 1'],
-            "craft polycraft:wooden_pogo_stick": ['increase inventory polycraft:wooden_pogo_stick 1'],
-            "extractRubber": ['increase inventory polycraft:sack_polyisoprene_pellets 1'],
+            "approach crafting_table tree_log": ['near tree_log'],
+            "approach tree_tap crafting_table": ['near tree_log'],
+            "approach air tree_log": ['near tree_log'],
+            "approach air crafting_table": ['near tree_log'],
+            "approach minecraft:crafting_table": ['near crafting_table'],
+            "Break tree_log": ['increase inventory_log 1'],
+            "Craft_plank": ['increase inventory plank 1'],
+            "Craft_stick": ['increase inventory stick 1'],
+            "Craft_tree_tap": ['increase inventory tree_tap 1'],
+            "Craft_pogo_stick": ['increase inventory pogo_stick 1'],
+            "Extract_rubber": ['increase inventory rubber 1'],
         }
+
         self.desired_effects = operator_map[failed_action]
+        print("desired effects: ", self.desired_effects)
         self.create_success_func = get_create_success_func_from_predicate_set(self.desired_effects)
         self.success_func = None
 
@@ -46,7 +55,7 @@ class Learner:
         add_reset_probas(self, exploration=True)
 
         self.dynamics_checker = PolycraftDynamicsChecker(self.env, self)
-        self.dynamics_checker.update_from_failure(self.failed_action)
+        self.dynamics_checker.update_from_failure(self.failed_action, {'cause': 'planning'})
 
         # Semi-impermissible actions that would leave us in unsolvable states if allowed pre-novelty
         # EW: do we want to use this or not?
@@ -323,12 +332,12 @@ class Learner:
 
             # Care first if we've found a plannable state or recovered the exact effects of a lost operator
             if outcome == 'plannable' or outcome == 'recovered':
-                # If we're exploring towards moveTo, we're already learning moveTo on the side
-                # If we ever explore towards a different operator, we don't want to reward moveTo
-                if outcome == 'recovered' and self.failed_action.startswith('moveTo'):
-                    rew = -1
-                else:
-                    rew = 1000
+                # # If we're exploring towards moveTo, we're already learning moveTo on the side
+                # # If we ever explore towards a different operator, we don't want to reward moveTo
+                # if outcome == 'recovered' and self.failed_action.startswith('moveTo'):
+                #     rew = -1
+                # else:
+                rew = 1000
                 success = True
 
                 #EW: would remove impermissible from set here if using
@@ -377,6 +386,8 @@ class Learner:
                 success = planning_success
             if success:
                 rew = 1000
+            # 'beneficial' here should really only line up with what we found during exploration of the
+            #  successful trial that was novel
             elif outcome == 'beneficial' and not RESTRICT_BENEFICIAL:
                 rew = 200
             #EW: do we want domain specific crafted rewards?

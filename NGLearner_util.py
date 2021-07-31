@@ -25,37 +25,56 @@ default_param_dict = {
     'update_freq': 50, #1,
 }
 
+LOG_STR="tree_log"
+PLANK_STR="plank"
+STICK_STR="stick"
+CT_STR="crafting_table"
+TAP_STR="tree_tap"
+RUBBER_STR="rubber"
+POGO_STR="pogo_stick"
+WALL_STR="wall"
+AIR_STR="air"
+FORWARD_STR="Forward"
+LEFT_STR="Left"
+RIGHT_STR="Right"
+BREAK_STR="Break"
+PLACE_TAP_STR="Place_tree_tap"
+EXTRACT_STR="Extract_rubber"
+CRAFT_STR="CRAFT_"
+SELECT_STR="Select_"
+APPROACH_STR="approach"
+
 #EW: Not sure if want to use this, can remove
 def check_permissible(self, action, info):
     action = self.env.all_actions[action]
 
-    if self.last_action == 'PLACE_TREE_TAP':
-        if info['block_in_front']['name'] == 'polycraft:tree_tap':
+    if self.last_action == PLACE_TAP_STR:
+        if info['block_in_front']['name'] == TAP_STR:
             self.placed_tap = True
-            return action == 'EXTRACT_RUBBER', 'placed_tap'
-    elif self.last_action == 'EXTRACT_RUBBER' and self.placed_tap:
-        return action == 'BREAK_BLOCK', 'extracted_rubber'
-    elif self.placed_tap and self.last_action == 'BREAK_BLOCK':
-        return action == 'MOVE w', 'broke_tap'
-    elif self.placed_tap and self.last_action == 'MOVE w':
+            return action == EXTRACT_STR, 'placed_tap'
+    elif self.last_action == EXTRACT_STR and self.placed_tap:
+        return action == BREAK_STR, 'extracted_rubber'
+    elif self.placed_tap and self.last_action == BREAK_STR:
+        return action == FORWARD_STR, 'broke_tap'
+    elif self.placed_tap and self.last_action == FORWARD_STR:
         self.placed_tap = False
-        if action == 'PLACE_TREE_TAP':
+        if action == PLACE_TAP_STR:
             return False, 'placed_tap'
 
-    if get_world_quant(info, 'minecraft:log') == 1 and get_inv_quant(info,'polycraft:sack_polyisoprene_pellets') < 1 and get_entity_quant(info, 'polycraft:sack_polyisoprene_pellets') < 1 and action == 'BREAK_BLOCK' and info['block_in_front']['name'] == 'minecraft:log' and 'break_last_tree' in self.impermissible_actions:
+    if get_world_quant(info, LOG_STR) == 1 and get_inv_quant(info,RUBBER_STR) < 1 and get_entity_quant(info, RUBBER_STR) < 1 and action == BREAK_STR and info['block_in_front']['name'] == LOG_STR and 'break_last_tree' in self.impermissible_actions:
         return False, 'break_last_tree'
-    elif action.startswith('CRAFT'):
-        if action.split()[1] == 'minecraft:stick' and 'craft_unnecessary_stick' in self.impermissible_actions:
-            if get_inv_quant(info, 'polycraft:tree_tap') < 1 and get_world_quant(info,'polycraft:tree_tap') < 1 and get_entity_quant(info, 'polycraft:tree_tap') < 1:
-                return get_inv_quant(info, 'minecraft:stick') <= 1, 'craft_unnecessary_stick'
+    elif action.startswith(CRAFT_STR):
+        if action[len(CRAFT_STR):] == STICK_STR and 'craft_unnecessary_stick' in self.impermissible_actions:
+            if get_inv_quant(info, TAP_STR) < 1 and get_world_quant(info,TAP_STR) < 1 and get_entity_quant(info, TAP_STR) < 1:
+                return get_inv_quant(info, STICK_STR) <= 1, 'craft_unnecessary_stick'
             else:
-                return get_inv_quant(info, 'minecraft:stick') <= 4, 'craft_unnecessary_stick'
+                return get_inv_quant(info, STICK_STR) <= 4, 'craft_unnecessary_stick'
 
-        elif action.split()[1] == 'polycraft:tree_tap' and 'craft_unnecessary_tap' in self.impermissible_actions:
-            return get_inv_quant(info, 'polycraft:tree_tap') + get_world_quant(info,'polycraft:tree_tap') + get_entity_quant(info, 'polycraft:tree_tap') < 1, 'craft_unnecessary_tap'
+        elif action[len(CRAFT_STR):] == TAP_STR and 'craft_unnecessary_tap' in self.impermissible_actions:
+            return get_inv_quant(info, TAP_STR) + get_world_quant(info,TAP_STR) + get_entity_quant(info, TAP_STR) < 1, 'craft_unnecessary_tap'
 
-        elif action.split()[1] != 'minecraft:planks' and action.split()[1] != 'polycraft:wooden_pogo_stick':
-            if get_inv_quant(info, action.split()[1]) > 0 or get_entity_quant(info,action.split()[1]) > 0 or get_world_quant(info, action.split()[1]) > 0:
+        elif action[len(CRAFT_STR)] != PLANK_STR and action[len(CRAFT_STR)] != POGO_STR:
+            if get_inv_quant(info, action[len(CRAFT_STR):]) > 0 or get_entity_quant(info,action[len(CRAFT_STR):]) > 0 or get_world_quant(info, action[len(CRAFT_STR):]) > 0:
                 return False, 'craft_new_recipe'
 
     return True, None
@@ -73,8 +92,8 @@ def informed_random_action(self, info):
         action_str = self.env.all_actions[action]
         if check_permissible(self, action, info)[0]:
             # #Don't allow craft actions if we don't have the recipe's components (or not in front of crafting table)
-            if action_str.split()[0] == 'CRAFT':
-                item = action_str.split()[1]
+            if action_str.split('_')[0] == 'CRAFT':
+                item = action_str[6:]
                 recipe = self.env.ingredients_quantity_dict[item][0]
                 have_components = True
                 for component in recipe:
@@ -84,15 +103,15 @@ def informed_random_action(self, info):
 
                 if have_components:
                     craft_table_needed = self.env.crafting_table_needed_dict[item][0]
-                    if craft_table_needed and info['block_in_front']['name'] != 'minecraft:crafting_table':
+                    if craft_table_needed and info['block_in_front']['name'] != CT_STR:
                         continue
                     else:
-                        if item == 'minecraft:planks' or item == 'minecraft:stick':
+                        if item == PLANK_STR or item == STICK_STR:
                             proba = 1
                         # Would likely be able to plan to the goal at the point of the pogo_stick craft, so
                         #  if we're even in this case we don't want to bias it too much because it's possible
                         #  that it's no longer actually possible for whatever reason
-                        elif item == 'polycraft:tree_tap' or item == 'polycraft:wooden_pogo_stick':
+                        elif item == TAP_STR or item == POGO_STR:
                             proba = 2
                         # New item
                         # Never permissible for now, forcing trade agent to craft recipe
@@ -103,28 +122,28 @@ def informed_random_action(self, info):
                         action_values.append(proba)
 
             # Only allow select item if we have it in the inventory and don't have it currently selected
-            elif action_str.split()[0] == 'SELECT_ITEM':
-                if get_inv_quant(info, action_str.split()[1]) >= 1 and info['selected_item'] != action_str.split()[1]:
+            elif action_str.split('_')[0] == 'SELECT':
+                if get_inv_quant(info, action_str[len(SELECT_STR):]) >= 1 and info['selected_item'] != action_str[len(SELECT_STR):]:
                     action_pool.append(action)
                     # reset will handle selects for the most part so decrease probabilities
                     action_values.append(0.25)
 
             # assert block in front is not air
-            elif action_str == 'BREAK_BLOCK':
-                if info['block_in_front']['name'] == 'minecraft:air' or info['block_in_front'][
-                    'name'] == 'minecraft:bedrock':
+            elif action_str == BREAK_STR:
+                if info['block_in_front']['name'] == AIR_STR or info['block_in_front'][
+                    'name'] == WALL_STR:
                     action_values.append(0.1)
                     action_pool.append(action)
                 else:
                     # TODO: encourage more if block in front is goal item?
                     action_values.append(2)
                     action_pool.append(action)
-            elif action_str == 'PLACE_TREE_TAP':
+            elif action_str == PLACE_TAP_STR:
                 # Can't encourage this too much because we enforce extract_rubber to follow, which is extremely expensive
                 # TODO: would be really best to handle extractRubber failure separately -
                 #   keep count of what we have tried to tap and how many times
-                if get_inv_quant(info, 'polycraft:tree_tap') > 0 and info['block_in_front']['name'] == 'minecraft:air':
-                    if self.failed_action == 'extractRubber':
+                if get_inv_quant(info, TAP_STR) > 0 and info['block_in_front']['name'] == AIR_STR:
+                    if self.failed_action == EXTRACT_STR:
                         # Allow experimenting with tapping different object if extractRubber fails
                         if self.env.check_for_further_validity(any=True):
                             action_values.append(5.0)
@@ -142,18 +161,18 @@ def informed_random_action(self, info):
                         action_pool.append(action)
                 continue
             elif action_str == 'PLACE_CRAFTING_TABLE':
-                if get_inv_quant(info, 'minecraft:crafting_table') >= 1 and info['block_in_front'][
-                    'name'] == 'minecraft:air':
+                if get_inv_quant(info, CT_STR) >= 1 and info['block_in_front'][
+                    'name'] == AIR_STR:
                     action_pool.append(action)
                     action_values.append(1)
             # assert block in front is tree tap
-            elif action_str == 'EXTRACT_RUBBER':
-                if info['block_in_front']['name'] == 'polycraft:tree_tap':
+            elif action_str == EXTRACT_STR:
+                if info['block_in_front']['name'] == TAP_STR:
                     # EXTRACTRUBBER IS SUPER EXPENSIVE, don't encourage
                     # only allow extractrubber if we're looking for a way to get rubber
                     # Either on that step in exploration or learning
-                    if (self.mode == 'exploration' and self.failed_action == 'extractRubber') or \
-                            (self.mode == 'learning' and self.failed_action == 'extractRubber'):
+                    if (self.mode == 'exploration' and self.failed_action == EXTRACT_STR) or \
+                            (self.mode == 'learning' and self.failed_action == EXTRACT_STR):
                         action_pool.append(action)
                         action_values.append(5)
                     # believe this is necessary when we are forcing extract rubber and only the case then
@@ -165,7 +184,7 @@ def informed_random_action(self, info):
                     action_pool.append(action)
                     action_values.append(0.001)
             else:
-                if action_str.split()[0] == 'MOVE' or action_str.split()[0] == 'TURN':
+                if action_str in [FORWARD_STR, LEFT_STR, RIGHT_STR]:
                     continue
                 action_pool.append(action)
                 action_values.append(1)
@@ -173,11 +192,11 @@ def informed_random_action(self, info):
     # Treat movement separately, want to bias exploration to remain near the reset block
     if not self.placed_tap:
         if self.last_reset_pos is None:
-            if info['block_in_front']['name'] == 'minecraft:air':
-                action_pool.append(self.env.actions_id['MOVE w'])
+            if info['block_in_front']['name'] == AIR_STR:
+                action_pool.append(self.env.actions_id[FORWARD_STR])
                 action_values.append(1)
-            action_pool.append(self.env.actions_id['TURN 90'])
-            action_pool.append(self.env.actions_id['TURN -90'])
+            action_pool.append(self.env.actions_id[RIGHT_STR])
+            action_pool.append(self.env.actions_id[LEFT_STR])
             action_values.append(1)
             action_values.append(1)
         else:
@@ -257,16 +276,16 @@ def informed_random_action(self, info):
                     elif distx < 0:
                         left_val = 1.0
                         right_val = 0.5
-            if info['block_in_front']['name'] == 'minecraft:air':
-                action_pool.append(self.env.actions_id['MOVE w'])
+            if info['block_in_front']['name'] == AIR_STR:
+                action_pool.append(self.env.actions_id[FORWARD_STR])
                 action_values.append(move_val)
-            action_pool.append(self.env.actions_id['TURN 90'])
-            action_pool.append(self.env.actions_id['TURN -90'])
+            action_pool.append(self.env.actions_id[RIGHT_STR])
+            action_pool.append(self.env.actions_id[LEFT_STR])
             action_values.append(left_val)
             action_values.append(right_val)
-    # If we're in place-extract-break-move w operator loop, add move w on last step
-    elif self.last_action == 'BREAK_BLOCK':
-        action_pool.append(self.env.actions_id['MOVE w'])
+    # If we're in place-extract-break-Forward operator loop, add Forward on last step
+    elif self.last_action == BREAK_STR:
+        action_pool.append(self.env.actions_id[FORWARD_STR])
         action_values.append(1)
 
     action_probas = action_values / np.sum(action_values)
@@ -363,10 +382,10 @@ def reset_to_interesting_state(self, first_reset=False):
             obs = self.env.observation()
             info = self.env.get_info()
             for _ in range(np.random.randint(10)):
-                obs, rew, done, info = self.step_env(self.env.actions_id['MOVE w'], obs, info)
-            obs, rew, done, info = self.step_env(self.env.actions_id['TURN 90'], obs, info)
+                obs, rew, done, info = self.step_env(self.env.actions_id[FORWARD_STR], obs, info)
+            obs, rew, done, info = self.step_env(self.env.actions_id[RIGHT_STR], obs, info)
             for _ in range(np.random.randint(10)):
-                obs, rew, done, info = self.step_env(self.env.actions_id['MOVE w'], obs, info)
+                obs, rew, done, info = self.step_env(self.env.actions_id[FORWARD_STR], obs, info)
 
             if self.found_relevant_during_reset:
                 self.resetting_state = False
@@ -436,7 +455,7 @@ def select_item(self, item_to_select=None):
         while len(interesting_items) > 0:
             interesting_item = interesting_items[np.random.randint(len(interesting_items))]
             if interesting_item in self.env.inventory_quantity_dict:
-                self.step_env(self.env.actions_id['SELECT_ITEM {}'.format(interesting_item)],store_transition=False)
+                self.step_env(self.env.actions_id['SELECT_{}'.format(interesting_item)],store_transition=False)
                 return interesting_item
             else:
                 del interesting_item_locations[ind]
@@ -444,7 +463,7 @@ def select_item(self, item_to_select=None):
         # Select random item otherwise
         if len(self.env.inventory_quantity_dict) > 0:
             item = np.random.choice(list(self.env.inventory_quantity_dict.keys()))
-            self.step_env(self.env.actions_id['SELECT_ITEM {}'.format(item)], store_transition=False)
+            self.step_env(self.env.actions_id['SELECT_{}'.format(item)], store_transition=False)
             return item
         # Can't select anything, don't have anything
         else:
@@ -452,7 +471,7 @@ def select_item(self, item_to_select=None):
     # Choose specific item to select (learning)
     else:
         if item_to_select in self.env.inventory_quantity_dict:
-            self.step_env(self.env.actions_id['SELECT_ITEM {}'.format(item_to_select)], store_transition=False)
+            self.step_env(self.env.actions_id['SELECT_{}'.format(item_to_select)], store_transition=False)
             return item_to_select
         else:
             print(
@@ -538,7 +557,7 @@ def plan_and_go_to_nearest(self, interesting_items, items_location, a_star, sx, 
                 relcoord = np.random.randint(4)
                 rx, ry = [], []
 
-                if (self.resetting_state and self.failed_action.split()[0] == 'moveTo' and self.failed_action.split()[1] == interesting_item):
+                if (self.resetting_state and self.failed_action.startswith(APPROACH_STR) and self.failed_action.split()[-1] == interesting_item):
                     dists = [1, 2, 3]
                 else:
                     dists = [1]
@@ -629,7 +648,7 @@ def plan_and_go_to_random(self, interesting_items, items_location, a_star, sx, s
             rx, ry = [], []
 
             # FutureTODO: clean up this check
-            if (self.resetting_state and self.failed_action.split()[0] == 'moveTo' and self.failed_action.split()[1] == interesting_item):
+            if (self.resetting_state and self.failed_action.split()[0] == APPROACH_STR and self.failed_action.split()[-1] == interesting_item):
                 dists = [1, 2, 3]
             else:
                 dists = [1]
@@ -727,7 +746,7 @@ def moveToUsingPlan(self, sx, sy, rxs, rys, ro):
             print("error in path plan")
             self.motion_planning = False
             return sx, sy
-        obs, rew, done, info = self.step_env(self.env.actions_id['MOVE w'], obs, info)
+        obs, rew, done, info = self.step_env(self.env.actions_id[FORWARD_STR], obs, info)
     orientation = self.env.player['facing']
     if orientation != ro:
         rotate_agent(self, orientation, ro, obs, info)
@@ -743,12 +762,12 @@ def rotate_agent(self, start_o, goal_o, obs=None, info=None):
     if num_rots == 0:
         return None, None, None, None
     elif num_rots == 1 or num_rots == -3:
-        return self.step_env(self.env.actions_id['TURN 90'], obs, info)
+        return self.step_env(self.env.actions_id[RIGHT_STR], obs, info)
     elif num_rots == 2 or num_rots == -2:
-        obs, rew, done, info = self.step_env(self.env.actions_id['TURN 90'], obs, info)
-        return self.step_env(self.env.actions_id['TURN 90'], obs, info)
+        obs, rew, done, info = self.step_env(self.env.actions_id[RIGHT_STR], obs, info)
+        return self.step_env(self.env.actions_id[RIGHT_STR], obs, info)
     elif num_rots == 3 or num_rots == -1:
-        return self.step_env(self.env.actions_id['TURN -90'], obs, info)
+        return self.step_env(self.env.actions_id[LEFT_STR], obs, info)
 
 
 # TODO: Learn these probabilities in a smarter way, it's in a simpler space than the actual task
@@ -771,16 +790,16 @@ def add_reset_probas(self, exploration=False):
     reset_near_values[novel_item_ids] += 5
     reset_near_values[novel_item_ids + self.env.num_types] += 5
     # Should only allow going near bedrock or air after much vain exploration (or do we want to do never?)
-    reset_near_values[self.env.mdp_items_id['minecraft:bedrock']] = 0.1
+    reset_near_values[self.env.mdp_items_id[WALL_STR]] = 0.1
     # Moving to air is essentially the same as random reset
-    reset_near_values[self.env.mdp_items_id['minecraft:air']] = 1
+    reset_near_values[self.env.mdp_items_id[AIR_STR]] = 1
 
-    if self.failed_action.split()[0] == 'moveTo':
+    if self.failed_action.split()[0] == APPROACH_STR:
         # attempt to go as near as possible to goal of moveTo with higher probability
-        reset_near_values[self.env.mdp_items_id[self.failed_action.split()[1]]] += 10
-    elif self.failed_action.split()[0] == 'break':
+        reset_near_values[self.env.mdp_items_id[self.failed_action.split()[-1]]] += 10
+    elif self.failed_action.split()[0] == BREAK_STR:
         # attempt to go as near as possible to goal of break with higher probability
-        reset_near_values[self.env.mdp_items_id[self.failed_action.split()[1]]] += 5
+        reset_near_values[self.env.mdp_items_id[self.failed_action.split()[-1]]] += 5
 
     # Only novel items are distinguishable in select case
     reset_select_values = np.ones(self.env.num_types)
@@ -853,9 +872,9 @@ def get_create_success_func_from_predicate(predicate_str):
             def create_success_func(init_obs, init_info):
                 def success_func(obs, info):
                     desired_increase = int(predicate_str.split()[2])
-                    log_increase = get_inv_quant(info, 'minecraft:log') - get_inv_quant(init_info,'minecraft:log')
-                    plank_increase = get_inv_quant(info, 'minecraft:planks') - get_inv_quant(init_info,'minecraft:planks')
-                    stick_increase = get_inv_quant(info, 'minecraft:stick') - get_inv_quant(init_info,'minecraft:stick')
+                    log_increase = get_inv_quant(info, LOG_STR) - get_inv_quant(init_info,LOG_STR)
+                    plank_increase = get_inv_quant(info, PLANK_STR) - get_inv_quant(init_info,PLANK_STR)
+                    stick_increase = get_inv_quant(info, STICK_STR) - get_inv_quant(init_info,STICK_STR)
                     return log_increase+plank_increase/4+stick_increase/8 >= desired_increase
                     # inv_increase = info['inv_quant_dict'][predicate_str.split()[1]] == init_info['inv_quant_dict'][predicate_str.split()[1]] + int(predicate_str.split()[2])
                     # return inv_increase
@@ -964,31 +983,31 @@ def get_create_success_func_from_predicate_set(predicate_list):
 # TODO: need general increase/decrease any or inc/dec morethan/lessthan N
 # Can't really enforce that operators do the same things to achieve the goal, using effect set is better than this
 def get_create_success_func_from_failed_operator(operator_str):
-    # e.g. 'approach minecraft:log' - goal is block_in_front == obj
-    if operator_str.split()[0] == 'approach':
+    # e.g. 'approach {}'.format(LOG_STR) - goal is block_in_front == obj
+    if operator_str.split()[0] == APPROACH_STR:
         return get_create_success_func_from_predicate('near {}'.format(operator_str.split()[1]))
     # to the RL agent approach and pickup should have the same policy though
     if operator_str.split()[0] == 'pickup':
         return get_create_success_func_from_predicate_set(['increase inventory {} 1'.format(operator_str.split()[1]), 'decrease world {} 1'.format(operator_str.split()[1])])
     #e.g. break minecraft:log - real goal is inv increase obs, block in front air
-    elif operator_str.split()[0] == 'break':
-        return get_create_success_func_from_predicate_set(['increase inventory {} 1'.format(operator_str.split()[1]), 'near minecraft:air', 'decrease world {} 1'.format(operator_str.split()[1])])
+    elif operator_str.split()[0] == BREAK_STR:
+        return get_create_success_func_from_predicate_set(['increase inventory {} 1'.format(operator_str.split()[1]), 'near {}'.format(AIR_STR), 'decrease world {} 1'.format(operator_str.split()[1])])
     elif operator_str.split()[0] == 'place':
         return get_create_success_func_from_predicate_set(['decrease inventory {} 1'.format(operator_str.split()[1]), 'near {}'.format(operator_str.split()[1])])
     # Don't have notion of tapped_log currently
-    elif operator_str == 'extractrubber':
-        return get_create_success_func_from_predicate_set(['increase inventory polycraft:sack_polyisoprene_pellets 1'])
+    elif operator_str == EXTRACT_STR:
+        return get_create_success_func_from_predicate_set(['increase inventory {} 1'.format(RUBBER_STR)])
     # For all crafting actions goal is to increase
     # Do we need to include notion of decrease as well? - to prevent losing too much?
     #   Do we just make it so the decrease has to be <= the original? Just losing more is not okay
-    elif operator_str == 'craftplank':
-        return get_create_success_func_from_predicate_set(['increase inventory minecraft:planks 1'])
-    elif operator_str == 'craftstick':
-        return get_create_success_func_from_predicate_set(['increase inventory minecraft:stick 1'])
-    elif operator_str == 'crafttreetap':
-        return get_create_success_func_from_predicate_set(['increase inventory polycraft:tree_tap 1'])
-    elif operator_str == 'craftpogostick':
-        return get_create_success_func_from_predicate_set(['increase inventory polycraft:wooden_pogo_stick 1'])
+    elif operator_str == 'Craft_plank':
+        return get_create_success_func_from_predicate_set(['increase inventory {} 1'.format(PLANK_STR)])
+    elif operator_str == 'Craft_stick':
+        return get_create_success_func_from_predicate_set(['increase inventory {} 1'.format(STICK_STR)])
+    elif operator_str == 'Craft_tree_tap':
+        return get_create_success_func_from_predicate_set(['increase inventory {}} 1'.format(TAP_STR)])
+    elif operator_str == 'Craft_pogo_stick':
+        return get_create_success_func_from_predicate_set(['increase inventory {} 1'.format(POGO_STR)])
     else:
         print(Fore.RED+"ERROR: cant create effect set from unknown operator {}".format(operator_str))
 
@@ -998,20 +1017,20 @@ def get_create_success_func_from_failed_operator(operator_str):
 class PolycraftDynamicsChecker:
     # Initialize with existing notion of dynamics
     def __init__(self, env, recovery_agent):
-        self.breakable_effects = {'minecraft:log': {'inventory': {'minecraft:log': 1},
-                                                    'world' :    {'minecraft:log': -1},
+        self.breakable_effects = {LOG_STR: {'inventory': {LOG_STR: 1},
+                                                    'world' :    {LOG_STR: -1},
                                                     'entity':    {}
                                                     },
-                                  'minecraft:crafting_table': {'inventory':  {'minecraft:crafting_table': 1},
-                                                                'world':     {'minecraft:crafting_table': -1},
+                                  CT_STR: {'inventory':  {CT_STR: 1},
+                                                                'world':     {CT_STR: -1},
                                                                 'entity':    {}
                                                                },
-                                  'polycraft:tree_tap': {'inventory': {'polycraft:tree_tap': 1},
-                                                         'world':     {'polycraft:tree_tap': -1},
+                                  TAP_STR: {'inventory': {TAP_STR: 1},
+                                                         'world':     {TAP_STR: -1},
                                                          'entity':    {}
                                                          }
                                   }
-        self.extractable_effects = {'polycraft:tree_tap': {'inventory': {'polycraft:sack_polyisoprene_pellets': 1},
+        self.extractable_effects = {TAP_STR: {'inventory': {RUBBER_STR: 1},
                                                            'world':     {},
                                                            'entity':    {}}
                                     }
@@ -1062,7 +1081,7 @@ class PolycraftDynamicsChecker:
             self.failed_goal = info['desired_goal']
             #haven't found anything new because haven't done anything, failed on planning
             self.updated_dynamics = True
-        elif failed_step.startswith('break'):
+        elif failed_step.startswith(BREAK_STR):
             if 'new_effects' in info:
                 #add notion of lost effect in case we happen to recover it
                 self.add_lost_effect(info['block_in_front']['name'], 'breakable')
@@ -1074,20 +1093,20 @@ class PolycraftDynamicsChecker:
                 self.breakable_effects[failed_step.split()[1]] = {'inventory': {}, 'world': {}, 'entity': {}}
                 self.updated_dynamics = True
             self.failed_step = failed_step
-            self.failed_goal = 'inventory minecraft:log'
-        elif failed_step == 'extractRubber':
+            self.failed_goal = 'inventory {}'.format(LOG_STR)
+        elif failed_step == EXTRACT_STR:
             if 'new_effects' in info:
                 self.add_lost_effect(info['block_in_front']['name'], 'extractable')
                 self.extractable_effects[failed_step.split()[1]] = info['new_effects']
                 self.updated_dynamics = True
             else:
                 print(Fore.YELLOW+'Warn, need to provide new resource effect for modified extract result, assuming nothing happened when action failed')
-                self.add_lost_effect('polycraft:tree_tap', 'extractable')
-                self.extractable_effects['polycraft:tree_tap'] = {'inventory': {}, 'world': {}, 'entity': {}}
+                self.add_lost_effect(TAP_STR, 'extractable')
+                self.extractable_effects[TAP_STR] = {'inventory': {}, 'world': {}, 'entity': {}}
                 self.updated_dynamics = True
             self.failed_step = failed_step
-            self.failed_goal = 'inventory polycraft:sack_polyisoprene_pellets'
-        elif failed_step.startswith('moveTo'):
+            self.failed_goal = 'inventory {}'.format(RUBBER_STR)
+        elif failed_step.startswith(APPROACH_STR):
             if 'cause' in info:
                 self.failed_step = failed_step
                 # planning vs execution
@@ -1103,15 +1122,12 @@ class PolycraftDynamicsChecker:
         else:
             print(Fore.RED+"Error: unknown failure step {}, exiting".format(failed_step))
             quit()
-        print('in update from failure')
-        print(self.failed_goal)
-        print(self.failed_step)
 
     # Given subsequent observations, check if any relevant novelties have occured
     def check_for_novelty(self, info, a, info_2, exploring=False):
         if self.failed_step is None:
             print(Fore.RED+'ERROR: cant check for novelty before supplying dynamics object what caused execution failure')
-        if get_world_quant(info, 'minecraft:bedrock') != get_world_quant(info_2, 'minecraft:bedrock'):
+        if get_world_quant(info, WALL_STR) != get_world_quant(info_2, WALL_STR):
             print(Fore.LIGHTYELLOW_EX+'New bedrock blocks spawned, need to account for this')
 
         # FIRST CHECK IF NOVEL OBJECT APPEARED, IF SO REVERT TO EXPLORATION
@@ -1130,27 +1146,26 @@ class PolycraftDynamicsChecker:
         # EXPECTED OUTCOMES
         # First compute expected changes to the world and inventory based on state and action
         if a.startswith('CRAFT'):
-            item_to_craft = a.split()[1]
-            # TODO: handle multiple recipes
-            recipe = self.env.recipes[item_to_craft][0]
+            item_to_craft = a[6:]
+            recipe = self.env.recipes[item_to_craft]
             # We expect to lose ingredients and gain output
-            if len(recipe['ingredients']) <= 4 or (len(recipe['ingredients']) > 4 and info['block_in_front'] != 'minecraft:crafting_table'):
+            if sum(recipe['input'].values()) <= 4 or (sum(recipe['input'].values()) > 4 and info['block_in_front'] != CT_STR):
                 # Subtract ingredients
-                for slot in recipe['ingredients']:
-                    if recipe['ingredients'][slot] is not None:
-                        expected_inv_diffs[self.env.mdp_items_id[recipe['ingredients'][slot]['Item']]] -= recipe['ingredients'][slot]['stackSize']
+                for slot in recipe['input']:
+                    expected_inv_diffs[self.env.mdp_items_id[slot]] -= recipe['input'][slot]
                 #Add output item
-                expected_inv_diffs[self.env.mdp_items_id[recipe['output_item']['Item']]] += recipe['output_item']['stackSize']
+                for slot in recipe['output']:
+                    expected_inv_diffs[self.env.mdp_items_id[slot]] += recipe['output'][slot]
             #If we don't actually have the ingredients, we expect nothing to happen
             for item_id in range(len(expected_inv_diffs)):
                 if expected_inv_diffs[item_id] < 0 and get_inv_quant(info, self.env.all_items[item_id]) < -expected_inv_diffs[item_id]:
                     expected_inv_diffs = np.zeros(len(self.env.mdp_items_id))
                     break
         # TODO: account for nondeterministic action outcomes, or conditional action outcomes explicitly
-        elif a == 'BREAK_BLOCK':
+        elif a == BREAK_STR:
             # update breakable block set if found to be unbreakable
             # include novel objects once we know is breakable but not helpful
-            for block in self.breakable_effects: #['minecraft:log', 'minecraft:crafting_table', 'polycraft:tree_tap']:
+            for block in self.breakable_effects: #[LOG_STR, CT_STR, TAP_STR]:
                 if info['block_in_front']['name'] == block:
                     for item in self.breakable_effects[block]['inventory']:
                         expected_inv_diffs[self.env.mdp_items_id[item]] += self.breakable_effects[block]['inventory'][item]
@@ -1161,25 +1176,25 @@ class PolycraftDynamicsChecker:
 
         # TODO: need to encode if object that is being tapped can be something other than a tree
         #       - should be found in explixit exploration though
-        elif a == 'EXTRACT_RUBBER':
+        elif a == EXTRACT_STR:
             for block in self.extractable_effects:
                 if info['block_in_front']['name'] == block and self.check_extract_rubber(info):
-                    for item in self.extractable_effects['polycraft:tree_tap']['inventory']:
-                        expected_inv_diffs[self.env.mdp_items_id[item]] += self.extractable_effects['polycraft:tree_tap']['inventory'][item]
-                    for item in self.extractable_effects['polycraft:tree_tap']['world']:
-                        expected_world_diffs[self.env.mdp_items_id[item]] += self.extractable_effects['polycraft:tree_tap']['world'][item]
-                    for item in self.extractable_effects['polycraft:tree_tap']['entity']:
-                        expected_entity_diffs[self.env.mdp_items_id[item]] += self.extractable_effects['polycraft:tree_tap']['entity'][item]
+                    for item in self.extractable_effects[TAP_STR]['inventory']:
+                        expected_inv_diffs[self.env.mdp_items_id[item]] += self.extractable_effects[TAP_STR]['inventory'][item]
+                    for item in self.extractable_effects[TAP_STR]['world']:
+                        expected_world_diffs[self.env.mdp_items_id[item]] += self.extractable_effects[TAP_STR]['world'][item]
+                    for item in self.extractable_effects[TAP_STR]['entity']:
+                        expected_entity_diffs[self.env.mdp_items_id[item]] += self.extractable_effects[TAP_STR]['entity'][item]
 
         elif a == 'PLACE_CRAFTING_TABLE':
-            if info['block_in_front']['name'] == 'minecraft:air' and get_inv_quant(info, 'minecraft:crafting_table') > 0:
-                expected_inv_diffs[self.env.mdp_items_id['minecraft:crafting_table']] -= 1
-                expected_world_diffs[self.env.mdp_items_id['minecraft:crafting_table']] += 1
+            if info['block_in_front']['name'] == AIR_STR and get_inv_quant(info, CT_STR) > 0:
+                expected_inv_diffs[self.env.mdp_items_id[CT_STR]] -= 1
+                expected_world_diffs[self.env.mdp_items_id[CT_STR]] += 1
 
-        elif a == 'PLACE_TREE_TAP':
-            if info['block_in_front']['name'] == 'minecraft:air' and get_inv_quant(info, 'polycraft:tree_tap') > 0:
-                expected_inv_diffs[self.env.mdp_items_id['polycraft:tree_tap']] -= 1
-                expected_world_diffs[self.env.mdp_items_id['polycraft:tree_tap']] += 1
+        elif a == PLACE_TAP_STR:
+            if info['block_in_front']['name'] == AIR_STR and get_inv_quant(info, TAP_STR) > 0:
+                expected_inv_diffs[self.env.mdp_items_id[TAP_STR]] -= 1
+                expected_world_diffs[self.env.mdp_items_id[TAP_STR]] += 1
 
         #select should have no effect
         #movement player pos differences should be caught separately
@@ -1197,7 +1212,7 @@ class PolycraftDynamicsChecker:
         ## Changes to inventory from step
         ## TODO: check if locations of items in world align?
         for item in self.env.mdp_items_id:
-            if item == 'minecraft:air' or item == 'minecraft:bedrock':
+            if item == AIR_STR or item == WALL_STR:
                 continue
             #### calculate actual inv diffs ####
             actual_inv_diff = get_inv_quant(info_2, item) - get_inv_quant(info, item)
@@ -1266,8 +1281,8 @@ class PolycraftDynamicsChecker:
                         'entity': actual_entity_diffs}
 
         #Special case - if exploring from failed moveTo, then we want to check if block_in_front is goal id
-        if self.recovery_agent.mode == 'exploration' and self.recovery_agent.failed_action.split()[0] == 'moveTo':
-            if info_2['block_in_front']['name'] == self.recovery_agent.failed_action.split()[1]:
+        if self.recovery_agent.mode == 'exploration' and self.recovery_agent.failed_action.split()[0] == APPROACH_STR:
+            if info_2['block_in_front']['name'] == self.recovery_agent.failed_action.split()[-1]:
                 return 'recovered', actual_diffs
 
         #Done cycle through item differences, reason about results
@@ -1293,10 +1308,10 @@ class PolycraftDynamicsChecker:
                         # If we recover lost functionality we need to make sure it's on the same subplan step
                         # We want recovered when on that operator or the moveTo before that operator, otherwise don't indicate recovered
                         # elif lost_effect['type'] == 'breakable':
-                        #     if 'break minecraft:log' not in self.recovery_agent.planner.resource_checkpoint_subplans[self.recovery_agent.planner.current_res_cp]:
+                        #     if 'break {}'.format(LOG_STR) not in self.recovery_agent.planner.resource_checkpoint_subplans[self.recovery_agent.planner.current_res_cp]:
                         #         break
                         # elif lost_effect['type'] == 'extractable':
-                        #     if 'extractRubber' not in self.recovery_agent.planner.resource_checkpoint_subplans[self.recovery_agent.planner.current_res_cp]:
+                        #     if EXTRACT_STR not in self.recovery_agent.planner.resource_checkpoint_subplans[self.recovery_agent.planner.current_res_cp]:
                         #         break
                         print(Fore.GREEN+'Should be able to recreate lost operator and fit into original plan to solve problem')
                         return 'recovered', actual_diffs
@@ -1314,7 +1329,7 @@ class PolycraftDynamicsChecker:
                     outcome = 'beneficial'
                     attempt_replan = True
                 elif positive_inv:
-                    if a == 'MOVE w' or a.startswith('TURN'):
+                    if a == FORWARD_STR or a.startswith('TURN'):
                         print(Fore.CYAN+'Unexpectedly gained item from movement action - likely entity wasnt picked up in sense all, indicating change as irrelevant but attempting replan just in case')
                         outcome == 'irrelevant'
                         attempt_replan = True
@@ -1323,7 +1338,7 @@ class PolycraftDynamicsChecker:
                         outcome = 'beneficial'
                         attempt_replan = True
                 elif negative_inv:
-                    if a == 'BREAK_BLOCK':
+                    if a == BREAK_STR:
                         print(Fore.CYAN + 'Didnt get as many items from break action as expected - possible entity has not been caught in sense all, indicating change as irrelevant')
                         outcome = 'irrelevant'
                     else:
@@ -1372,7 +1387,7 @@ class PolycraftDynamicsChecker:
             elif positive_inv and negative_entity and not (negative_inv or positive_entity) and world_as_expected:
                 #If we're waiting on results of moveTo log and pick up log entity -> return 'recovered'
                 if self.pending_entity_pickup:
-                    if actual_inv_diffs[self.env.items_id['minecraft:log']] > 0:
+                    if actual_inv_diffs[self.env.items_id[LOG_STR]] > 0:
                         print(Fore.GREEN + "Picked up entity missed from breaking log, setting return as 'recovered'")
                         outcome = 'recovered'
                         self.pending_entity_pickup = False
@@ -1389,14 +1404,14 @@ class PolycraftDynamicsChecker:
                 outcome = 'irrelevant'
 
             #Broke block but entity not picked up
-            elif negative_inv and positive_entity and not (positive_inv or negative_entity) and world_as_expected and a == 'BREAK_BLOCK':
+            elif negative_inv and positive_entity and not (positive_inv or negative_entity) and world_as_expected and a == BREAK_STR:
                 if self.recovery_agent.mode == 'exploration':
                     print(Fore.CYAN + 'Likely broke a block without picking up entity that dropped, setting as irrelevant\n')
                 outcome = 'irrelevant'
 
             #Broke block without picking up entity, but wasn't expecting to break block
-            elif negative_world and positive_entity and not (positive_world or negative_entity) and inv_as_expected and a == 'BREAK_BLOCK':
-                if self.recovery_agent.mode == 'exploration' and not self.failed_step.startswith('break'):
+            elif negative_world and positive_entity and not (positive_world or negative_entity) and inv_as_expected and a == BREAK_STR:
+                if self.recovery_agent.mode == 'exploration' and not self.failed_step.startswith(BREAK_STR):
                     print(Fore.CYAN + 'Likely broke a block without picking up entity that dropped, but wasnt expecting to recieve item, setting as beneficial')
 
                 if exploring:
@@ -1500,8 +1515,8 @@ class PolycraftDynamicsChecker:
             player_x = self.env.player['pos'][0]
             player_y = self.env.player['pos'][2]
             flag = False
-            for i in range(get_world_quant(info, 'minecraft:log')):
-                loc = list(map(int, str.split(info['items_locs']['minecraft:log'][i], ',')))
+            for i in range(get_world_quant(info, LOG_STR)):
+                loc = list(map(int, str.split(info['items_locs'][LOG_STR][i], ',')))
                 # if facing any direction there are three cases:
                 # A: two blocks away B: 2 diagonal blocks away cases
                 if player_facing == 'NORTH':
@@ -1565,11 +1580,11 @@ class PolycraftDynamicsChecker:
     def update_knowledge_base(self, info, a, actual_inv_diffs, actual_world_diffs, actual_entity_diffs):
         #if updated effect is that nothing happens, simply remove entry
         if not (np.any(actual_inv_diffs) or np.any(actual_world_diffs) or np.any(actual_entity_diffs)):
-            if a == 'BREAK_BLOCK':
+            if a == BREAK_STR:
                 if info['block_in_front']['name'] in self.breakable_effects:
                     self.add_lost_effect(info['block_in_front']['name'], 'breakable')
                     del self.breakable_effects[info['block_in_front']['name']]
-            elif a == 'EXTRACT_RUBBER':
+            elif a == EXTRACT_STR:
                 if info['block_in_front']['name'] in self.extractable_effects:
                     self.add_lost_effect(info['block_in_front']['name'], 'extractable')
                     del self.extractable_effects_effects[info['block_in_front']['name']]
@@ -1590,9 +1605,9 @@ class PolycraftDynamicsChecker:
             if actual_entity_diffs[i] != 0:
                 effect_dict['entity'][self.env.all_items[i]] = actual_entity_diffs[i]
 
-        if a == 'BREAK_BLOCK':
+        if a == BREAK_STR:
             self.breakable_effects[info['block_in_front']['name']] = effect_dict
-        elif a == 'EXTRACT_RUBBER':
+        elif a == EXTRACT_STR:
             self.extractable_effects_effects[info['block_in_front']['name']] = effect_dict
         else:
             print(Fore.RED+'Failure occured on action {}, this should never be the case (has a recipe failed without us knowing?)'.format(a))
@@ -1639,7 +1654,7 @@ class NovelgridworldInterface:
     """
     Goal: Craft 1 pogo_stick
     State: map, agent_location, agent_facing_id, inventory_items_quantity
-    Action: {'Forward': 0, 'Left': 1, 'Right': 2, 'Break': 3, 'Place_tree_tap': 4, 'Extract_rubber': 5,
+    Action: {FORWARD_STR: 0, 'Left': 1, 'Right': 2, BREAK_STR: 3, PLACE_TAP_STR: 4, EXTRACT_STR: 5,
             Craft action for each recipe, Select action for each item except unbreakable items}
     """
 
@@ -1649,19 +1664,15 @@ class NovelgridworldInterface:
 
         ## Don't want to do socket connection if unnecessary
         # # Given attributes:
-        # self.host = host
-        # self.port = port
-        # self.reset_command = reset_command
         self.render_bool = render_bool
-        # self.save_json = save_json
 
         # Processed SENSE_RECIPES attributes:
         self.recipes = {}
         #TODO: compute this along with changes to recipe rep
-        self.crafting_table_needed_dict = {'minecraft:planks': [False],
-                                           'minecraft:stick': [False],
-                                           'polycraft:tree_tap': [True],
-                                           'polycraft:wooden_pogo_stick': [True]}
+        self.crafting_table_needed_dict = {PLANK_STR: [False],
+                                           STICK_STR: [False],
+                                           TAP_STR: [True],
+                                           POGO_STR: [True]}
         # self.crafting_table_needed_dict = {}
         self.ingredients_quantity_dict = {}
 
@@ -1681,12 +1692,10 @@ class NovelgridworldInterface:
         self.items_location = {}  # contains item's name and its locations in env.
         self.items_id = {}  # contains name and ID of items in env., starts from 1
         self.map_to_plot = []  # contains item ID of items in env.
-        self.binary_map = []  # contains 0 for 'minecraft:air', otherwise 1
+        self.binary_map = []  # contains 0 for AIR_STR, otherwise 1
 
         # Constants specific to PAL
         self.move_commands = ['SMOOTH_MOVE', 'MOVE', 'SMOOTH_TURN', 'TURN', 'SMOOTH_TILT']
-        # self.move_commands.extend(['MOVE_NORTH', 'MOVE_SOUTH', 'MOVE_EAST', 'MOVE_WEST', 'LOOK_NORTH', 'LOOK_SOUTH',
-        #                            'LOOK_EAST', 'LOOK_WEST'])  # RL agent nav. actions
         self.run_SENSE_ALL_and_update()
         self.run_SENSE_RECIPES_and_update()
 
@@ -1725,24 +1734,24 @@ class NovelgridworldInterface:
                                        'message': 'SENSE_SCREEN not supported for gridworldenv',
                                        'stepCost': 6}}
         else:
-            if command == 'MOVE w':
-                _, _r, _d, info = self.env.step(self.env.actions_id['Forward'])
-            elif command == 'TURN -90':
+            if command == FORWARD_STR:
+                _, _r, _d, info = self.env.step(self.env.actions_id[FORWARD_STR])
+            elif command == LEFT_STR:
                 _, _r, _d, info = self.env.step(self.env.actions_id['Left'])
-            elif command == 'TURN 90':
+            elif command == RIGHT_STR:
                 _, _r, _d, info = self.env.step(self.env.actions_id['Right'])
-            elif command == 'BREAK_BLOCK':
-                _, _r, _d, info = self.env.step(self.env.actions_id['Break'])
-            elif command == 'PLACE_TREE_TAP':
-                _, _r, _d, info = self.env.step(self.env.actions_id['Place_tree_tap'])
+            elif command == BREAK_STR:
+                _, _r, _d, info = self.env.step(self.env.actions_id[BREAK_STR])
+            elif command == PLACE_TAP_STR:
+                _, _r, _d, info = self.env.step(self.env.actions_id[PLACE_TAP_STR])
             elif command == 'PLACE_CRAFTING_TABLE':
                 _, _r, _d, info = self.env.step(self.env.actions_id['Place_crafting_table'])
-            elif command == 'EXTRACT_RUBBER':
-                _, _r, _d, info = self.env.step(self.env.actions_id['Extract_rubber'])
-            elif command.split()[0] == 'SELECT_ITEM':
-                _, _r, _d, info = self.env.step(self.env.actions_id['Select_{}'.format(command.split()[1])])
-            elif command.split()[0] == 'CRAFT':
-                _, _r, _d, info = self.env.step(self.env.actions_id['Craft_{}'.format(command.split()[1])])
+            elif command == EXTRACT_STR:
+                _, _r, _d, info = self.env.step(self.env.actions_id[EXTRACT_STR])
+            elif command.split('_')[0] == 'SELECT':
+                _, _r, _d, info = self.env.step(self.env.actions_id['Select_{}'.format(command[len(SELECT_STR):])])
+            elif command.split('_')[0] == 'CRAFT':
+                _, _r, _d, info = self.env.step(self.env.actions_id['Craft_{}'.format(command[len(CRAFT_STR):])])
             else:
                 _, _r, _d, info = self.env.step(self.env.actions_id[command])
             return {'command_result': {'command': command,
@@ -1778,6 +1787,7 @@ class NovelgridworldInterface:
         """
         if len(self.items_id) == 0:
             self.items_id = self.env.items_id
+            self.generate_id_items()
 
         # These will all updated in step anyway right? So we don't actually have to do anything
         # Copy relevant variables from underlying env
@@ -1788,81 +1798,57 @@ class NovelgridworldInterface:
         except:
             # Equate holding air to holding nothing
             self.selected_item_id = 0
-        # self.selected_item_id = self.items_id[self.selected_item]
         self.block_in_front = {'name':self.env.block_in_front_str}
         self.inventory_quantity_dict = {}
         unfiltered_inventory_quantity_dict = self.env.inventory_items_quantity.copy()
         for item in unfiltered_inventory_quantity_dict:
             if unfiltered_inventory_quantity_dict[item] > 0:
                 self.inventory_quantity_dict[item] = unfiltered_inventory_quantity_dict[item]
-        # self.inventory_quantity_dict = self.env.inventory_items_quantity.copy()
-        # self.player = self.env.player
-        # Don't think z should ever change
-        # self.player = {'pos': [self.env.agent_location[0], 0, self.env.agent_location[1]],
         self.player = {'pos': [self.env.agent_location[1], 0, self.env.agent_location[0]],
                        'facing': self.env.agent_facing_str,
                        'yaw': 0,
                        'pitch': 0}
         self.entities = self.env.entities.copy()
-        # self.map_to_plot = self.env.map.copy()
         self.items_location = {}
         # construct items_location dict from map
-        # for r in range(self.map_to_plot.shape[0]):
-        #     for c in range(self.map_to_plot.shape[1]):
         env_map = self.env.map.copy()
         self.map_to_plot = np.zeros((env_map.shape[0], env_map.shape[1]))  # Y (row) is before X (column) in matrix
         for r in range(env_map.shape[0]):
             for c in range(env_map.shape[1]):
-                item_name = self.env.id_items[env_map[r][c]]
+                item_name = self.all_items[env_map[r][c]]
                 self.items_location.setdefault(item_name, [])
-                # self.items_location[item_name].append('{},0,{}'.format(r,c))
                 # x,z,y to match with polycraft
                 self.items_location[item_name].append('{},0,{}'.format(c,r))
                 self.map_to_plot[r][c] = self.items_id[item_name]
 
-        # self.binary_map = np.where(self.map_to_plot == self.items_id['minecraft:air'], 0, 1)
-        # self.binary_map = np.where(self.map_to_plot == self.env.items_id['minecraft:air'], 0, 1)
-        self.binary_map = np.where(self.map_to_plot == self.items_id['minecraft:air'], 0, 1)
+        self.binary_map = np.where(self.map_to_plot == self.items_id[AIR_STR], 0, 1)
 
         sense_all_command_result = {'command': 'SENSE_ALL',
                                     'argument': parameter,
                                     'result': 'SUCCESS',
                                     'message': '',
                                     'stepCost': 114.0}
-        # self.entities_location
-        # self.binary_map
-
         return sense_all_command_result
 
     def run_SENSE_RECIPES_and_update(self):
-        self.recipes = self.env.polycraft_recipes.copy()
-        # for item in self.recipes:
-        #     self.recipes[item] = [self.recipes[item]]
-        # env_recipes = self.env.env_recipes
         env_recipes = self.env.recipes.copy()
+        self.recipes = env_recipes
 
         # Finding self.ingredients_quantity_dict
         for item_to_craft in env_recipes:
-            # print(item_to_craft)
             self.ingredients_quantity_dict.setdefault(item_to_craft, [])
 
-            # for a_recipe in env_recipes[item_to_craft]:
             a_recipe = env_recipes[item_to_craft]
 
-            # print(a_recipe)
             ingredients_quantity_dict_for_item_to_craft = {}
 
             for item in a_recipe['input']:
-                # print(item)
-                # print(a_recipe['input'][item])
                 ingredients_quantity_dict_for_item_to_craft.setdefault(item, 0)
                 ingredients_quantity_dict_for_item_to_craft[item] = a_recipe['input'][item]
-            # print(ingredients_quantity_dict_for_item_to_craft)
 
             self.ingredients_quantity_dict[item_to_craft].append(ingredients_quantity_dict_for_item_to_craft)
 
     def run_SENSE_INVENTORY_and_update(self, inventory_output_inventory=None):
-        # self.inventory_quantity_dict = self.env.inventory_items_quantity.copy()
         #Filter out items we don't actually have to align with polycraft
         self.inventory_quantity_dict = {}
         unfiltered_inventory_quantity_dict = self.env.inventory_items_quantity.copy()
@@ -1886,6 +1872,11 @@ class NovelgridworldInterface:
                        'pitch': 0}
         return {'command': 'SENSE_LOCATIONS', 'argument': '', 'result': 'SUCCESS', 'message': '', 'stepCost': 6.0}
 
+    def generate_id_items(self):
+        self.all_items = [None for _ in range(len(self.items_id))]
+        for item in self.items_id:
+            self.all_items[self.items_id[item]] = item
+
 
 # Env class to interface between polycraft socket connection and RL agents
 class GridworldMDP(NovelgridworldInterface):
@@ -1895,7 +1886,6 @@ class GridworldMDP(NovelgridworldInterface):
 
         # local view size
         self.agent_view_size = agent_view_size
-        # self.task = task
 
         self.observation_space = None
         self.action_space = None
@@ -1916,46 +1906,25 @@ class GridworldMDP(NovelgridworldInterface):
             self.env.render()
 
     def set_items_id(self, items):
-        # items_id = {}
-        self.all_items = [None for i in range(len(items))]
-        if 'minecraft:air' in items:
+        if AIR_STR in items:
             #This should always be 0
-            self.mdp_items_id['minecraft:air'] = 0
-            # items_id['minecraft:air'] = 0
-            # self.all_items.append('minecraft:air')
-            self.all_items[0] = 'minecraft:air'
-        # for item in sorted(items):
+            self.mdp_items_id[AIR_STR] = 0
         for item in items:
-            if item != 'minecraft:air':
-                if 'minecraft:air' in items:
+            if item != AIR_STR:
+                if AIR_STR in items:
                     self.mdp_items_id.setdefault(item, len(self.mdp_items_id))
-                    # items_id[item] = len(items_id)
                 else:
                     self.mdp_items_id.setdefault(item, len(self.mdp_items_id)+1)
-                    # items_id[item] = len(items_id) + 1
-                # self.all_items.append(item)
-                self.all_items[self.mdp_items_id[item]] = item
+
+        self.all_items = [None for i in range(len(self.mdp_items_id))]
+        for item in self.mdp_items_id:
+            self.all_items[self.mdp_items_id[item]] = item
+
 
         # return items_id
 
     def generate_obs_action_spaces(self, new_items=[]):
-        # #MDP items_id must be same as env items_id, but we want to include items that the env has not seen before
-        # #Since items_id is updated as we go on, copying items_id should actually always be fine as is
-        # self.all_items = []
-        # self.mdp_items_id = self.items_id.copy()
-        # for item in new_items:
-        #     if item not in self.mdp_items_id:
-        #         self.mdp_items_id[item] = len(items_id)
-        # #Notion used to prioritize reset states
-        # self.novel_items = []
-        # for item in self.mdp_items_id:
-        #     self.all_items.append(item)
-        #     if item not in ['minecraft:air', 'minecraft:bedrock', 'minecraft:crafting_table', 'minecraft:log',
-        #                     'minecraft:planks', 'minecraft:stick', 'polycraft:tree_tap', 'polycraft:wooden_pogo_stick',
-        #                     'polycraft:sack_polyisoprene_pellets']:
-        #         self.novel_items.append(item)
 
-        # self.novel_items = []
         novel_items = []
         # Want complete list of items_ids, not just whats in map
         # Take everything that's currently in the map and part of crafting world
@@ -1981,9 +1950,9 @@ class GridworldMDP(NovelgridworldInterface):
 
         #indicate new items as novel
         for item in item_list:
-            if item not in ['minecraft:air', 'minecraft:bedrock', 'minecraft:crafting_table', 'minecraft:log',
-                            'minecraft:planks', 'minecraft:stick', 'polycraft:tree_tap', 'polycraft:wooden_pogo_stick',
-                            'polycraft:sack_polyisoprene_pellets']:
+            if item not in [AIR_STR, WALL_STR, CT_STR, LOG_STR,
+                            PLANK_STR, STICK_STR, TAP_STR, POGO_STR,
+                            RUBBER_STR]:
                 novel_items.append(item)
                 if self.first_space_init:
                     if item not in self.novel_items:
@@ -1992,86 +1961,38 @@ class GridworldMDP(NovelgridworldInterface):
 
         self.novel_items = novel_items
 
-        # self.mdp_items_id = self.set_items_id(item_list)
         self.set_items_id(item_list)
 
         #Need items_id to be aligned with MDP items id
-        #TODO: ask Gyan if I can change this
         self.items_id = self.mdp_items_id.copy()
-        # print('mdp items', self.mdp_items_id)
-        # print('items', self.items_id)
-        # print(self.all_items)
 
         self.mdp_inventory_items = list(self.mdp_items_id.keys())
-        if 'minecraft:air' in self.mdp_inventory_items:
-            self.mdp_inventory_items.remove('minecraft:air')
-        if 'minecraft:bedrock' in self.mdp_inventory_items:
-            self.mdp_inventory_items.remove('minecraft:bedrock')
+        if AIR_STR in self.mdp_inventory_items:
+            self.mdp_inventory_items.remove(AIR_STR)
+        if WALL_STR in self.mdp_inventory_items:
+            self.mdp_inventory_items.remove(WALL_STR)
         #remove pogostick?
-
-        #Need some notion of entities in the obs space
-        #I believe adding a new type for each id to differentiate between block and entity
-        #  and extending relcoords to each of those is too much
-        #Entities are also weird to put in the map because they can pop out on top of blocks
-        #Solution - just add notion of how many entities of each id are in the world? So the agent
-        #   can know when it caused an entity to pop up or pick one up. Downside is don't know how close
-        #   to one we are, but picking them up should be handled in reset_to_interesting_state
-        # self.mdp_entity_items = list(self.mdp_items_id.keys())
-        # if 'minecraft:air' in self.mdp_inventory_items:
-        #     self.mdp_inventory_items.remove('minecraft:air')
-        # if 'minecraft:bedrock' in self.mdp_inventory_items:
-        #     self.mdp_inventory_items.remove('minecraft:bedrock')
-        #TODO: Best solution:
-        # Only add notion of entity count if we've seen it post-novelty (+ blocks we know it's possible)
-        # Extend action space to include pick_up actions for entities?
-        #   move to and pick up entity if in map - *But what if can't motion plan? Just as confusing for the agent
-        #   otherwise give greater neg reward
-
-
-        # print(self.items_id)
-        # print(self.recipes.keys())
-        # print(self.inventory_items)
 
         # Generate all actions from current state of env and set action space
         # TODO: make sure at this point whatever novel object is present in env to be included
-        self.manip_actions =  ['MOVE w',
-                               'TURN -90',
-                               'TURN 90',
-                               'BREAK_BLOCK',
-                               'PLACE_TREE_TAP',
-                               'EXTRACT_RUBBER']
+        self.manip_actions =  [FORWARD_STR,
+                               LEFT_STR,
+                               RIGHT_STR,
+                               BREAK_STR,
+                               PLACE_TAP_STR,
+                               EXTRACT_STR]
 
         # Add place_crafting_table to action list -> we can break it but not put it back currently
-        self.manip_actions.append('PLACE_CRAFTING_TABLE')
+        # self.manip_actions.append('PLACE_CRAFTING_TABLE')
 
         # Should crafting table be a recipe?
-        self.crafting_actions = ['CRAFT ' + item for item in self.recipes.keys()]
+        self.crafting_actions = ['CRAFT_' + item for item in self.env.recipes.keys()]
 
         # REMOVE CRAFT crafting_table - don't think this is present in tournament, but is in API
-        if 'CRAFT minecraft:crafting_table' in self.crafting_actions:
-            self.crafting_actions.remove('CRAFT minecraft:crafting_table')
+        if 'CRAFT_{}'.format(CT_STR) in self.crafting_actions:
+            self.crafting_actions.remove('CRAFT_{}'.format(CT_STR))
 
-        # self.select_actions =  ['SELECT_ITEM polycraft:wooden_pogo_stick',
-        #                         'SELECT_ITEM polycraft:tree_tap',
-        #                         'SELECT_ITEM minecraft:planks',
-        #                         'SELECT_ITEM minecraft:stick',
-        #                         'SELECT_ITEM minecraft:crafting_table',
-        #                         'SELECT_ITEM polycraft:sack_polyisoprene_pellets',
-        #                         'SELECT_ITEM minecraft:log']
-        self.select_actions = ['SELECT_ITEM ' + item for item in self.mdp_inventory_items]
-
-        # TODO: planner has deselect action, but I don't see how you can deselect an item through API
-        #   The initial selected_item is '', but there's no command I see to select nothing
-        # And USE_HAND is different than break without object
-        # print(self.execute_action('SELECT_ITEM '))
-        # input('wait')
-
-        # For testing purposes to assert that everything is working
-        # self.manip_actions =  ['MOVE w',
-        #                        'TURN -90',
-        #                        'TURN 90']
-        # self.crafting_actions = []
-        # self.select_actions = []
+        self.select_actions = ['SELECT_' + item for item in self.mdp_inventory_items]
 
         self.all_actions = self.manip_actions + self.crafting_actions + self.select_actions
         self.actions_id = {}
@@ -2094,7 +2015,7 @@ class GridworldMDP(NovelgridworldInterface):
         y_max, x_max = self.map_to_plot.shape
         # How many rel_coords items are we going to use? All possible?
         self.interesting_items = OrderedDict(self.mdp_items_id.copy())
-        for item in ['minecraft:air', 'minecraft:bedrock', 'minecraft:planks', 'minecraft:stick', 'polycraft:sack_polyisoprene_pellets','polycraft:wooden_pogo_stick']:
+        for item in [AIR_STR, WALL_STR, PLANK_STR, STICK_STR, RUBBER_STR,POGO_STR]:
             try:
                 del self.interesting_items[item]
             except:
@@ -2112,14 +2033,6 @@ class GridworldMDP(NovelgridworldInterface):
         high = np.concatenate((high_map, [len(self.mdp_items_id)+1], self.max_items*np.ones(len(self.mdp_inventory_items))))
         self.observation_space = spaces.Box(low, high, dtype=np.float32)
 
-        # print(self.get_nearest_items())
-
-        #No notion of selected item anywhere? Assuming we are holding nothing to start
-        #       NOT ALWAYS GOING TO BE TRUE
-        # self.selected_item = 'minecraft:air'
-        # self.selected_item_id = 0
-        # self.selected_item_id = self.items_id[self.selected_item]
-
         # Need to update map using updated items_id set
         sense_all_command_result = self.run_SENSE_ALL_and_update('NONAV')
         self.accumulated_step_cost += sense_all_command_result['stepCost']
@@ -2128,183 +2041,11 @@ class GridworldMDP(NovelgridworldInterface):
 
         print('updated items, recipes, and actions in MDP')
         print('Items: ', self.mdp_items_id)
-        print('Craft items: ', self.recipes.keys())
+        print('Craft items: ', self.env.recipes.keys())
         print('Actions: ', self.actions_id)
         self.first_space_init = True
 
-    # # def set_items_id(self, items, novel_items):
-    # #     items_id = {}
-    # #     self.all_items = []
-    # #     if 'minecraft:air' in items:
-    # #         items_id['minecraft:air'] = 0
-    # #         self.all_items.append('minecraft:air')
-    # #     for item in sorted(items):
-    # #         if item != 'minecraft:air':
-    # #             if 'minecraft:air' in items:
-    # #                 items_id[item] = len(items_id)
-    # #             else:
-    # #                 items_id[item] = len(items_id) + 1
-    # #             self.all_items.append(item)
-    # #
-    # #     #To make sure ids align, believe interface sets novel items to len(ids)+1 in the order they appear
-    # #     for item in novel_items:
-    # #         self.all_items.append(item)
-    # #         if 'minecraft:air' in items:
-    # #             items_id[item] = len(items_id)
-    # #         else:
-    # #             items_id[item] = len(items_id) + 1
-    # #
-    # #     return items_id
-    #
-    # # Function to be called post-novelty to update observation and action space
-    # #   to be used by RL agent
-    # def generate_obs_action_spaces(self, new_items=[]):
-    #     #MDP items_id must be same as env items_id, but we want to include items that the env has not seen before
-    #     self.all_items = []
-    #     self.mdp_items_id = self.env.items_id.copy()
-    #     for item in new_items:
-    #         if item not in self.mdp_items_id:
-    #             self.mdp_items_id[item] = len(items_id)
-    #     #Notion used to prioritize reset states
-    #     self.novel_items = []
-    #     for item in self.mdp_items_id:
-    #         self.all_items.append(item)
-    #         if item not in ['minecraft:air', 'minecraft:bedrock', 'minecraft:crafting_table', 'minecraft:log',
-    #                         'minecraft:planks', 'minecraft:stick', 'polycraft:tree_tap', 'polycraft:wooden_pogo_stick',
-    #                         'polycraft:sack_polyisoprene_pellets']:
-    #             self.novel_items.append(item)
-    #
-    #
-    #
-    #     # # self.novel_items = []
-    #     # novel_items = []
-    #     # # Want complete list of items_ids, not just whats in map
-    #     # # Take everything that's currently in the map and part of crafting world
-    #     # # TODO: Need to do this smarter, if completed items pops up in the middle of a
-    #     # #           round but post 'novelty-detection', this will not pick it up
-    #     # item_list = []
-    #     # for item in self.ingredients_quantity_dict:
-    #     #     item_list.append(item)
-    #     #     for i, ingredients_quantity_dict in enumerate(self.ingredients_quantity_dict[item]):
-    #     #         for ingredient in self.ingredients_quantity_dict[item][i]:
-    #     #             item_list.append(ingredient)
-    #     #
-    #     # # Anything passed in new_items that wasn't found elsewhere
-    #     # # for item in new_items:
-    #     # #     if item not in item_list:
-    #     # #         item_list.append(item)
-    #     #
-    #     # item_list = set(list(item_list) + list(self.items_location.keys()) + list(self.inventory_quantity_dict.keys()))
-    #     #
-    #     # for item in item_list:
-    #     #     if item not in ['minecraft:air', 'minecraft:bedrock', 'minecraft:crafting_table', 'minecraft:log',
-    #     #                     'minecraft:planks', 'minecraft:stick', 'polycraft:tree_tap', 'polycraft:wooden_pogo_stick',
-    #     #                     'polycraft:sack_polyisoprene_pellets'] and item not in new_items:
-    #     #         # self.novel_items.append(item)
-    #     #         novel_items.append(item)
-    #     #         if self.first_space_init:
-    #     #             if item not in self.novel_items:
-    #     #                 print('WARNING - Novel item {} has been discovered since last MDP action/obs space init, observations prior to and after this point will be mismatched'.format(item))
-    #     #
-    #     # self.novel_items = novel_items + new_items
-    #     #
-    #     # print(item_list, new_items)
-    #     # self.mdp_items_id = self.set_items_id(item_list, new_items)
-    #     # print('mdp items', self.mdp_items_id)
-    #     # print('env items', self.env.items_id)
-    #
-    #     self.inventory_items = list(self.mdp_items_id.keys())
-    #     if 'minecraft:air' in self.inventory_items:
-    #         self.inventory_items.remove('minecraft:air')
-    #     if 'minecraft:bedrock' in self.inventory_items:
-    #         self.inventory_items.remove('minecraft:bedrock')
-    #     # print(self.items_id)
-    #     # print(self.recipes.keys())
-    #     # print(self.inventory_items)
-    #
-    #     # Generate all actions from current state of env and set action space
-    #     # TODO: make sure at this point whatever novel object is present in env to be included
-    #     self.manip_actions =  ['MOVE w',
-    #                            'TURN -90',
-    #                            'TURN 90',
-    #                            'BREAK_BLOCK',
-    #                            'PLACE_TREE_TAP',
-    #                            'EXTRACT_RUBBER']
-    #
-    #     # Add place_crafting_table to action list -> we can break it but not put it back currently
-    #     self.manip_actions.append('PLACE_CRAFTING_TABLE')
-    #
-    #     # Should crafting table be a recipe?
-    #     self.crafting_actions = ['CRAFT ' + item for item in self.recipes.keys()]
-    #
-    #     # REMOVE CRAFT crafting_table - don't think this is present in tournament, but is in API
-    #     if 'CRAFT minecraft:crafting_table' in self.crafting_actions:
-    #         self.crafting_actions.remove('CRAFT minecraft:crafting_table')
-    #
-    #     # self.select_actions =  ['SELECT_ITEM polycraft:wooden_pogo_stick',
-    #     #                         'SELECT_ITEM polycraft:tree_tap',
-    #     #                         'SELECT_ITEM minecraft:planks',
-    #     #                         'SELECT_ITEM minecraft:stick',
-    #     #                         'SELECT_ITEM minecraft:crafting_table',
-    #     #                         'SELECT_ITEM polycraft:sack_polyisoprene_pellets',
-    #     #                         'SELECT_ITEM minecraft:log']
-    #     self.select_actions = ['SELECT_ITEM ' + item for item in self.inventory_items]
-    #
-    #     # TODO: planner has deselect action, but I don't see how you can deselect an item through API
-    #     #   The initial selected_item is '', but there's no command I see to select nothing
-    #     # And USE_HAND is different than break without object
-    #     # print(self.execute_action('SELECT_ITEM '))
-    #     # input('wait')
-    #
-    #     # For testing purposes to assert that everything is working
-    #     # self.manip_actions =  ['MOVE w',
-    #     #                        'TURN -90',
-    #     #                        'TURN 90']
-    #     # self.crafting_actions = []
-    #     # self.select_actions = []
-    #
-    #     self.all_actions = self.manip_actions + self.crafting_actions + self.select_actions
-    #     self.actions_id = {}
-    #     for i in range(len(self.all_actions)):
-    #         self.actions_id[self.all_actions[i]] = i
-    #     self.action_space = spaces.Discrete(len(self.actions_id))
-    #
-    #     # TODO: compute max possible number of items given an env? or just set to arbitrary cap
-    #     self.max_items = 20
-    #     # Make observation_space
-    #     agent_map_size = (self.agent_view_size + 1) ** 2
-    #     low_agent_map = np.zeros(agent_map_size)
-    #     high_agent_map = (len(self.mdp_items_id)+1) * np.ones(agent_map_size)
-    #     low_orientation = np.array([0])
-    #     high_orientation = np.array([4])
-    #     y_max, x_max = self.map_to_plot.shape
-    #     # How many rel_coords items are we going to use? All possible?
-    #     self.interesting_items = self.mdp_items_id.copy()
-    #     del self.interesting_items['minecraft:air']
-    #     low_rel_coords = np.array([[-x_max, y_max] for i in range(len(self.interesting_items))]).flatten()
-    #     high_rel_coords = np.array([[x_max, y_max] for i in range(len(self.interesting_items))]).flatten()
-    #     low_map = np.concatenate((low_agent_map, low_orientation, low_rel_coords))
-    #     high_map = np.concatenate((high_agent_map, high_orientation, high_rel_coords))
-    #     low = np.concatenate((low_map,[0],np.zeros(len(self.inventory_items))))
-    #     high = np.concatenate((high_map, [len(self.mdp_items_id)+1], self.max_items*np.ones(len(self.inventory_items))))
-    #     self.observation_space = spaces.Box(low, high, dtype=np.float32)
-    #
-    #     # TODO: what is the best way to do this
-    #     # Need to update map using updated mdp_items_id set
-    #     sense_all_command_result = self.run_SENSE_ALL_and_update('NONAV')
-    #     self.accumulated_step_cost += sense_all_command_result['stepCost']
-    #
-    #     self.num_types = len(self.mdp_items_id)+1
-    #
-    #     print('updated items, recipes, and actions in MDP')
-    #     print('Items: ', self.mdp_items_id)
-    #     print('Craft items: ', self.recipes.keys())
-    #     print('Actions: ', self.actions_id)
-    #     self.first_space_init = True
-
-
     def step(self, action_id):
-        # action_id = int(input('action'))
         action = self.all_actions[action_id]
 
         # Need to map to action string?
@@ -2312,25 +2053,15 @@ class GridworldMDP(NovelgridworldInterface):
         self.accumulated_step_cost += action_result['stepCost'] + sense_all_result['stepCost']
         self.last_step_cost = action_result['stepCost'] + sense_all_result['stepCost']
 
-        #Should be caught in dynamics_agent check
-        # if len(self.items_id) >= self.num_types:
-        #     print('gridworldMDP, novel item added to items_id')
-        # if len(self.env.items_id) >= self.num_types:
-        #     print('gridworldMDP, novel item added to underlying items_id')
-
         obs = self.observation()
 
         return obs, None, None, self.get_info()
 
     def get_info(self):
-        # info = {'bin_map': self.binary_map, 'map_limits': (self.x_max, self.y_max), \
         info = {'items_locs': self.items_location.copy(), \
                 'entities_locs': self.entities_location, \
                 'block_in_front': self.block_in_front.copy(), \
                 'inv_quant_dict': self.inventory_quantity_dict.copy(), \
-                # 'inv_quant_list': self.inventory_list, \
-                # 'ingred_quant_dict': self.ingredients_quantity_dict, \
-                # 'player': self.player, 'local_view_size': self.local_view_size, \
                 'player': self.player, \
                 'selected_item': self.selected_item,
                 'total_step_cost': self.accumulated_step_cost,
@@ -2339,10 +2070,7 @@ class GridworldMDP(NovelgridworldInterface):
         return info
 
     def reset(self, task=None):
-        # if task is None:
-        #     task = self.task
         self.accumulated_step_cost = 0
-        # self.reset()
         a_command_result, sense_all_command_result = self.run_a_command_and_sense_all('RESET', sleep_time=5)
         self.accumulated_step_cost += a_command_result['stepCost'] + sense_all_command_result['stepCost']
         obs = self.observation()
@@ -2363,9 +2091,6 @@ class GridworldMDP(NovelgridworldInterface):
 
         facing_id = {'NORTH': 0, 'SOUTH': 1, 'WEST': 2, 'EAST': 3}[self.player["facing"]]
         state = np.concatenate((local_view.flatten(), [facing_id], nearest_items.flatten(), [self.selected_item_id], inventory))
-        # print(state)
-
-        # state.astype(np.float).ravel()
 
         return state
 
@@ -2404,1162 +2129,6 @@ class GridworldMDP(NovelgridworldInterface):
             rots += 1
 
         local_view = np.rot90(local_view, rots)
-
-        # print(local_view)
-
-        return local_view
-        # """
-        # Slice map with 0 padding based on agent_view_size
-        #
-        # :return: local view of the agent
-        # """
-        #
-        # envmap = self.map_to_plot
-        # agent_facing = self.player['facing']
-        # desired_center = (self.player['pos'][0], self.player['pos'][2])
-        #
-        # extend = [int(self.agent_view_size/2), int(self.agent_view_size/2)]  # row and column
-        # pad_value = 0
-        #
-        # extend = np.asarray(extend)
-        # map_ext_shp = envmap.shape + 2 * np.array(extend)
-        # map_ext = np.full(map_ext_shp, pad_value)
-        # insert_idx = [slice(i, -i) for i in extend]
-        # map_ext[tuple(insert_idx)] = envmap
-        # region_idx = [slice(i, j) for i, j in zip(desired_center, extend * 2 + 1 + desired_center)]
-        # area = map_ext[tuple(region_idx)]
-        #
-        # if agent_facing == 'NORTH':
-        #     out = area
-        # elif agent_facing == 'SOUTH':
-        #     out = np.flip(area)
-        # elif agent_facing == 'EAST':
-        #     out = np.rot90(area, 1)
-        # elif agent_facing == 'WEST':
-        #     out = np.rot90(area, 3)
-        # else:
-        #     print("unknown agent facing id: ", agent_facing_id)
-        #     quit()
-        #
-        # return out.flatten()
-
-    def get_nearest_items(self):
-        nearest_dists = [np.inf] * len(self.mdp_items_id)
-        nearest_coords = np.zeros((len(self.mdp_items_id), 2))
-
-        envmap = self.map_to_plot.copy()
-        agent_x_ = self.player['pos'][0]
-        agent_y_ = self.player['pos'][2]
-
-        if (self.player["facing"] == "NORTH"):
-            agent_y = agent_y_
-            agent_x = agent_x_
-        elif (self.player["facing"] == "SOUTH"):
-            envmap = np.flipud(envmap)
-            agent_y = envmap.shape[0]-1-agent_y_
-            agent_x = agent_x_
-        elif (self.player["facing"] == "EAST"):
-            envmap = np.rot90(envmap, 1)
-            agent_y = envmap.shape[1]-1-agent_x_
-            agent_x = agent_y_
-        elif (self.player["facing"] == "WEST"):
-            envmap = np.rot90(envmap, 3)
-            agent_y = agent_x_
-            agent_x = envmap.shape[0]-1-agent_y_
-
-        # nearest dist should be manhattan distance
-        for i in range(envmap.shape[0]):
-            for j in range(envmap.shape[1]):
-                item_id = int(envmap[i][j])
-                # if item_id in self.item_ids:
-                if item_id in range(len(self.mdp_items_id)):
-                    dist = np.abs(agent_x - j) + np.abs(agent_y - i)
-                    # dist = np.sqrt((agent_x - j)**2 + (agent_y - i)**2)
-                    if dist < nearest_dists[item_id]:
-                        nearest_dists[item_id] = dist
-                        nearest_coords[item_id] = (i, j)
-                        # if self.env.agent_facing_id == 1:
-                        if (self.player["facing"] == "SOUTH"):
-                            nearest_coords[item_id] = (agent_y - i, agent_x - j)
-                        else:
-                            nearest_coords[item_id] = (agent_y - i, j - agent_x)
-        return nearest_coords[list(self.interesting_items.values())]
-
-        # nearest_dists = [np.inf] * len(self.items_id)
-        # nearest_coords = np.zeros((len(self.items_id), 2))
-        #
-        # envmap = self.map_to_plot.copy()
-        # agent_x_ = self.player['pos'][0]
-        # agent_y_ = self.player['pos'][2]
-        #
-        # if (self.player["facing"] == "NORTH"):
-        #     agent_y = agent_x_
-        #     agent_x = agent_y_
-        # elif (self.player["facing"] == "SOUTH"):
-        #     envmap = np.flipud(envmap)
-        #     agent_y = envmap.shape[0]-1-agent_x_
-        #     agent_x = agent_y_
-        # elif (self.player["facing"] == "EAST"):
-        #     envmap = np.rot90(envmap, 1)
-        #     agent_y = envmap.shape[1]-1-agent_y_
-        #     agent_x = agent_x_
-        # elif (self.player["facing"] == "WEST"):
-        #     envmap = np.rot90(envmap, 3)
-        #     agent_y = agent_y_
-        #     agent_x = envmap.shape[0]-1-agent_x_
-        #
-        # # nearest dist should be manhattan distance
-        # for i in range(envmap.shape[0]):
-        #     for j in range(envmap.shape[1]):
-        #         item_id = int(envmap[i][j])
-        #         # if item_id in self.item_ids:
-        #         if item_id in range(len(self.items_id)):
-        #             dist = np.abs(agent_x - j) + np.abs(agent_y - i)
-        #             # dist = np.sqrt((agent_x - j)**2 + (agent_y - i)**2)
-        #             if dist < nearest_dists[item_id]:
-        #                 nearest_dists[item_id] = dist
-        #                 nearest_coords[item_id] = (i, j)
-        #                 # if self.env.agent_facing_id == 1:
-        #                 if (self.player["facing"] == "SOUTH"):
-        #                     nearest_coords[item_id] = (agent_y - i, agent_x - j)
-        #                 else:
-        #                     nearest_coords[item_id] = (agent_y - i, j - agent_x)
-        #
-        # return nearest_coords[list(self.interesting_items.values())]
-
-
-    def generate_inv_list(self):
-        # print(self.inventory_list)
-        inv = []
-        for item in self.mdp_inventory_items:
-            if item in self.inventory_quantity_dict:
-                inv.append(self.inventory_quantity_dict[item])
-            else:
-                inv.append(0)
-        return inv
-
-    def check_for_further_validity(self, any=False):
-        # this checks for further validity of the action based on
-        # the agent needs to be two blocks away from the log and facing it
-        x = self.player['pos'][0]
-        y = self.player['pos'][2]
-        if self.player['facing'] == 'NORTH':
-            y -= 1
-        elif self.player['facing'] == 'SOUTH':
-            y += 1
-        elif self.player['facing'] == 'EAST':
-            x += 1
-        elif self.player['facing'] == 'WEST':
-            x -= 1
-
-        if any:
-            if self.map_to_plot[y+1][x] != self.mdp_items_id['minecraft:air'] and self.map_to_plot[y+1][x] != self.mdp_items_id['minecraft:bedrock'] and self.map_to_plot[y+1][x] != self.mdp_items_id['minecraft:log']:
-                return True
-            elif self.map_to_plot[y-1][x] != self.mdp_items_id['minecraft:air'] and self.map_to_plot[y+1][x] != self.mdp_items_id['minecraft:bedrock'] and self.map_to_plot[y+1][x] != self.mdp_items_id['minecraft:log']:
-                return True
-            elif self.map_to_plot[y][x-1] != self.mdp_items_id['minecraft:air'] and self.map_to_plot[y+1][x] != self.mdp_items_id['minecraft:bedrock'] and self.map_to_plot[y+1][x] != self.mdp_items_id['minecraft:log']:
-                return True
-            elif self.map_to_plot[y][x+1] != self.mdp_items_id['minecraft:air'] and self.map_to_plot[y+1][x] != self.mdp_items_id['minecraft:bedrock'] and self.map_to_plot[y+1][x] != self.mdp_items_id['minecraft:log']:
-                return True
-            else:
-                return
-        else:
-            if self.map_to_plot[y+1][x] == self.mdp_items_id['minecraft:log']:
-                return True
-            elif self.map_to_plot[y-1][x] == self.mdp_items_id['minecraft:log']:
-                return True
-            elif self.map_to_plot[y][x-1] == self.mdp_items_id['minecraft:log']:
-                return True
-            elif self.map_to_plot[y][x+1] == self.mdp_items_id['minecraft:log']:
-                return True
-            else:
-                return False
-
-
-# Gridworld env to match with updated RL polycraft interface and allow
-#   for commands like SENSE_ALL etc without simulating socket connection
-
-
-##############################################################
-
-# Author: Gyan Tatiya
-# Email: Gyan.Tatiya@tufts.edu
-
-import csv
-import json
-import os
-import platform
-import socket
-import subprocess
-import sys
-import time
-from datetime import datetime
-# import basic libs
-import socket
-import time
-import ast
-import numpy as np
-import matplotlib.pyplot as plt
-import math
-import cv2
-import copy
-import sys
-from IPython import embed
-from gym import spaces
-from collections import OrderedDict
-
-import matplotlib.pyplot as plt
-import numpy as np
-
-# sys.path.append('../utils')
-from polycraft_tufts.utils.utils import get_active_windows, get_paths, sleep_and_display
-
-NG_PC_COMMANDS = {'MOVE w': 'SMOOTH_MOVE W',
-                  'TURN -90': 'SMOOTH_TURN -90',
-                  'TURN 90': 'SMOOTH_TURN 90',
-                  'BREAK_BLOCK': 'BREAK_BLOCK',
-                  'PLACE_TREE_TAP': 'PLACE_BLOCK polycraft:tree_tap',
-                  'PLACE_CRAFTING_TABLE': 'PLACE_BLOCK minecraft:crafting_table',
-                  'EXTRACT_RUBBER': 'EXTRACT_RUBBER'}
-
-
-class PolycraftInterface:
-    def __init__(self, use_trade, trade_socket, host=None, port=None, reset_command=None, render_bool=False, save_json=False, using_ng=False):
-        if use_trade and trade_socket is None:
-            print('[PolycraftInterface] ERROR, use_trade is set to true but no socket connection to trade has been supplied')
-            quit()
-
-        # Given attributes:
-        self.host = host
-        self.port = port
-        self.reset_command = reset_command
-        self.render_bool = render_bool
-        self.save_json = save_json
-        self.game_over = False
-        self.game_success = False
-        self.use_trade = use_trade
-
-        # Processed SENSE_RECIPES attributes:
-        self.recipes = {}
-        self.crafting_table_needed_dict = {}
-        self.ingredients_quantity_dict = {}
-
-        # SENSE_ALL attributes:
-        self.block_in_front = {}  # name
-        self.inventory_quantity_dict = {}
-        self.player = {}  # pos, facing, yaw, pitch
-        self.destination_pos = []
-        self.entities = {}
-        self.map = {}
-
-        # Processed SENSE_ALL attributes:
-        self.entities_location = {}  # contains entity's name and its locations in env.
-        self.map_origin = [0, 0, 0]
-        self.map_size = [0, 0, 0]  # x, z, y
-        self.x_max, self.z_max, self.y_max = self.map_size
-        self.items_location = {}  # contains item's name and its locations in env.
-        self.items_id = {}  # contains name and ID of items in env., starts from 1
-        self.map_to_plot = []  # contains item ID of items in env.
-        self.binary_map = []  # contains 0 for 'minecraft:air', otherwise 1
-        self.using_ng = using_ng
-
-        # Constants specific to PAL
-        self.move_commands = ['SMOOTH_MOVE', 'MOVE', 'SMOOTH_TURN', 'TURN', 'SMOOTH_TILT']
-        self.move_commands.extend(['MOVE_NORTH', 'MOVE_SOUTH', 'MOVE_EAST', 'MOVE_WEST', 'LOOK_NORTH', 'LOOK_SOUTH',
-                                   'LOOK_EAST', 'LOOK_WEST'])  # RL agent nav. actions
-
-        if self.save_json:
-            task = self.reset_command.split(" ")[2].split('/')[-1]
-            csv_filename = task + "_" + datetime.now().strftime("%Y-%m-%d-%H-%M-%S") + ".csv"
-
-            _, POLYCRAFT_TUFTS_PATH, _ = get_paths(os.getcwd(), 'PAL')
-            os.makedirs(POLYCRAFT_TUFTS_PATH + os.sep + "datasets", exist_ok=True)
-            self.csv_filepath = POLYCRAFT_TUFTS_PATH + os.sep + "datasets" + os.sep + csv_filename
-            with open(self.csv_filepath, 'w') as f:
-                writer = csv.writer(f, lineterminator="\n")
-                writer.writerow(["Command", "JSON", "player", "block_in_front", "x_max", "y_max", "items_location",
-                                 "binary_map", "inventory_quantity_dict", "ingredients_quantity_dict", "command_result"]
-                                )
-
-        if not use_trade:
-            """
-            If Polycraft is running, simply connects the socket.
-            If Polycraft is not running, start Polycraft, run START command.
-            """
-            windows = get_active_windows()
-            #This is technically the conditional on USING_TOURNAMENT_MANAGER
-            if 'Minecraft 1.8.9' in windows:
-                print('Minecraft is running')
-                self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                self.sock.connect((self.host, self.port))
-                if self.reset_command is not None:
-                    self.run_a_command_and_update_map(self.reset_command, sleep_time=2)  # takes time to reset
-                else:
-                    self.run_SENSE_ALL_and_update('NONAV')
-            else:
-                print('Minecraft is not running, starting the game, connecting the socket and sending START command. '
-                      'Be patient :)')
-                current_path, _, POLYCRAFT_PATH = get_paths(os.getcwd(), 'PAL')
-                os.chdir(POLYCRAFT_PATH)
-                if platform.system() == 'Linux':
-                    # process = subprocess.Popen('xterm -hold -e sudo ./gradlew runClient &', shell=True)
-                    process = subprocess.Popen('konsole --hold -e sudo ./gradlew runClient &', shell=True)
-                    sleep_and_display(70)  # polycraft takes ~ 0:60 to load
-                elif platform.system() == 'Windows':
-                    process = subprocess.Popen('start /wait LaunchPolycraft.bat', shell=True)
-                    sleep_and_display(120)  # polycraft takes ~ 2:00 to load
-                os.chdir(current_path)
-                self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                self.sock.connect((self.host, self.port))
-                self.send_command_and_save_json('START')
-                self.run_a_command_and_update_map(self.reset_command, sleep_time=10)  # takes time to reset
-        else:
-            self.sock = trade_socket
-        #     self.run_SENSE_ALL_and_update('NONAV')
-
-        # Update: self.recipes, self.crafting_table_needed_dict, self.ingredients_quantity_dict
-        # self.run_SENSE_RECIPES_and_update()
-
-        # self.run_SENSE_ALL_and_update()
-
-
-    def send_command(self, command):
-        """
-        Send command to the env.
-        """
-
-        # Block code necessary to run with socket_env_polycraft.py
-        if self.using_ng:
-            if command in NG_PC_COMMANDS:
-                command = NG_PC_COMMANDS[command]
-
-        # Wait before SENSE_ALL NONAV to get updated info.
-        # if command == "SENSE_ALL NONAV":
-        #     sleep_and_display(0.5)
-        # print('Sending command: {}'.format(command))
-        self.sock.send(str.encode(command + '\n'))
-        # print("Command: ", command)
-        BUFF_SIZE = 4096  # 4 KiB
-        data = b''
-        while True:
-            time.sleep(0.00001)
-            part = self.sock.recv(BUFF_SIZE)
-            data += part
-            if len(part) < BUFF_SIZE:
-                # either 0 or end of data
-                break
-
-        output=json.loads(data)
-        if data.decode('UTF-8') == 'null\n':
-            print('recieved back null after send command to TRADE, resending last command {}'.format(command))
-            return self.send_command(command)
-
-        if output['gameOver'] == True:
-            if output['goal']['goalAchieved']:
-                self.game_success = True
-            self.game_over = True
-
-
-        return output
-
-    def write_to_csv(self, command, output):
-
-        if self.save_json:
-            if 'command_result' not in output:
-                output['command_result'] = ""
-            with open(self.csv_filepath, 'a') as f:  # append to the file created
-                writer = csv.writer(f, lineterminator="\n")
-                writer.writerow([command, output, self.player, self.block_in_front, self.x_max, self.y_max,
-                                 self.items_location, self.binary_map, self.inventory_quantity_dict,
-                                 self.ingredients_quantity_dict, output['command_result']])
-
-    def send_command_and_save_json(self, command, sleep_time=0):
-        """
-        Use it for commands that do not update processed attributes in __init__ like START
-        """
-
-        output = self.send_command(command)
-        if sleep_time:
-            sleep_and_display(sleep_time)
-        self.write_to_csv(command, output)
-
-    # Methods to process SENSE commands
-
-    def run_SENSE_RECIPES_and_update(self):
-        """
-        Generate recipes, crafting_table_needed_dict, ingredients_quantity_dict
-        Example of recipes:
-        {'polycraft:wooden_pogo_stick':
-          [{'ingredients': {'0': {'Item': 'minecraft:stick', 'stackSize': 1, 'slot': 0},
-                            '1': {'Item': 'minecraft:stick', 'stackSize': 1, 'slot': 1},
-                            ...},
-            'output_item': {'Item': 'polycraft:wooden_pogo_stick', 'stackSize': 1, 'slot': 9}},
-           {'ingredients': {'0': {'Item': 'minecraft:planks', 'stackSize': 1, 'slot': 0},
-                             '1': {'Item': 'polycraft:bag_polyisoprene_pellets', 'stackSize': 1, 'slot': 1},
-                            ...},
-            'output_item': {'Item': 'polycraft:wooden_pogo_stick', 'stackSize': 1, 'slot': 9}}
-          ]
-        """
-
-        self.recipes = {}
-        self.crafting_table_needed_dict = {}
-        self.ingredients_quantity_dict = {}
-
-        command = "SENSE_RECIPES"
-        reset_output = self.send_command(command)  # send command
-
-        for recipes_dict in reset_output["recipes"]:
-            ingredients = {}
-            # In Minecraft recipes are always represented by 9 slots
-            for slot_no in range(9):
-                # Handling items that requires only one item to craft
-                if (slot_no == 0) and (len(recipes_dict['inputs']) == 1):
-                    if recipes_dict['inputs'][slot_no]['slot'] == -1:
-                        ingredients[str(slot_no)] = recipes_dict['inputs'][slot_no]
-                        for slot_no2 in range(slot_no + 1, 4):
-                            ingredients[str(slot_no2)] = None
-                        break
-
-                for an_item in recipes_dict['inputs']:
-                    if an_item['slot'] == slot_no:
-                        ingredients[str(slot_no)] = an_item
-                        break
-                # for blank slots, fill with None
-                if str(slot_no) not in ingredients:
-                    ingredients[str(slot_no)] = None
-            # To create the same item, there can be different recipes, storing each in a list's element
-            self.recipes.setdefault(recipes_dict["outputs"][0]['Item'], [])
-            self.recipes[recipes_dict["outputs"][0]['Item']].append({'ingredients': ingredients,
-                                                                     'output_item': recipes_dict['outputs'][0]})
-
-        # Finding which item needs crafting table
-        for item_to_craft in self.recipes:
-            self.crafting_table_needed_dict.setdefault(item_to_craft, [])
-            for a_recipe in self.recipes[item_to_craft]:
-                craft_command = "CRAFT " + str(1) + " "
-                for a_ingredient in range(len(a_recipe['ingredients'])):
-                    if a_recipe['ingredients'][str(a_ingredient)] is not None:
-                        craft_command += a_recipe['ingredients'][str(a_ingredient)]['Item'] + " "
-                    else:
-                        craft_command += "0 "
-                craft_command = craft_command[:-1]
-                craft_command_list = np.array(craft_command.split(' '))
-                if len(craft_command_list) == 11:
-                    crafting_table_needed = False
-                    for i in [4, 7, 8, 9, 10]:
-                        if craft_command_list[i] != '0':
-                            crafting_table_needed = True
-                    if not crafting_table_needed:
-                        craft_command = " ".join(craft_command_list[np.array([0, 1, 2, 3, 5, 6])])
-                craft_command_list = np.array(craft_command.split(' '))
-                if len(craft_command_list) == 11:
-                    self.crafting_table_needed_dict[item_to_craft].append(True)
-                else:
-                    self.crafting_table_needed_dict[item_to_craft].append(False)
-
-        # Finding self.ingredients_quantity_dict
-        for item_to_craft in self.recipes:
-            self.ingredients_quantity_dict.setdefault(item_to_craft, [])
-
-            for a_recipe in self.recipes[item_to_craft]:
-                ingredients_quantity_dict_for_item_to_craft = {}
-
-                for slot in a_recipe['ingredients']:
-                    if a_recipe['ingredients'][slot] != None:
-                        ingredients_quantity_dict_for_item_to_craft.setdefault(a_recipe['ingredients'][slot]['Item'], 0)
-                        ingredients_quantity_dict_for_item_to_craft[a_recipe['ingredients'][slot]['Item']] += 1
-
-                self.ingredients_quantity_dict[item_to_craft].append(ingredients_quantity_dict_for_item_to_craft)
-
-        self.write_to_csv(command, reset_output)  # Keep in the end as it saves processed attributes
-
-    def run_SENSE_INVENTORY_and_update(self, inventory_output_inventory=None):
-
-        if not isinstance(inventory_output_inventory, dict):
-            inventory_output = self.send_command('SENSE_INVENTORY')  # send command
-            sense_inventory_command_result = inventory_output['command_result']
-            inventory_output_inventory = inventory_output['inventory']  # goal, command_result
-        else:
-            sense_inventory_command_result = {}
-
-        self.inventory_quantity_dict = {}
-        for slot in inventory_output_inventory:
-            if inventory_output_inventory[slot]['item'] != '' and slot != 'selectedItem':
-                if inventory_output_inventory[slot]['item'] in self.inventory_quantity_dict:
-                    self.inventory_quantity_dict[inventory_output_inventory[slot]['item']] += inventory_output_inventory[slot]['count']
-                else:
-                    self.inventory_quantity_dict[inventory_output_inventory[slot]['item']] = inventory_output_inventory[slot]['count']
-
-        if not isinstance(inventory_output_inventory, dict):
-            self.write_to_csv('SENSE_INVENTORY', inventory_output)  # Keep in the end as it saves processed attributes
-
-        return sense_inventory_command_result
-
-    def run_SENSE_LOCATIONS_and_update(self):
-        # does not update blockInFront
-
-        sense_location_output = self.send_command('SENSE_LOCATIONS')  # send command
-        sense_location_output_command_result = sense_location_output['command_result']
-        self.player = sense_location_output['player']  # contains player's pos, facing, yaw, pitch
-        self.write_to_csv('SENSE_LOCATIONS', sense_location_output)
-
-        return sense_location_output_command_result
-
-    def run_SENSE_ALL_and_update(self, parameter=None, set_agent_id=False, sense_recipes=False):
-        """
-        set_agent_id: set to True only when visualize_env_2d() is used for plotting
-                      because agent is represented by an ID 1 on the plot
-        """
-        # Get env. info.
-        parameter = 'NONAV'
-        if parameter == None:
-            command = "SENSE_ALL"
-            sense_all_output = self.send_command(command)
-        else:
-            command = "SENSE_ALL " + parameter
-            sense_all_output = self.send_command(command)
-
-        self.block_in_front = sense_all_output['blockInFront']  # name
-        self.run_SENSE_INVENTORY_and_update(
-            sense_all_output['inventory'])  # key is slot no. in inventory. Update: self.inventory_quantity_dict
-        self.player = sense_all_output['player']  # contains player's pos, facing, yaw, pitch
-        self.destination_pos = sense_all_output['destinationPos']
-        self.entities = sense_all_output['entities']
-        self.map = sense_all_output['map']
-        sense_all_command_result = sense_all_output['command_result']
-        if sense_recipes:
-            self.run_SENSE_RECIPES_and_update()
-        # print(self.entities)
-
-        if parameter == None:
-            self.entities_location = {}  # contains entity's name and its locations in env.
-            for location, an_entity in self.entities.items():
-                self.entities_location.setdefault(an_entity['item'], [])
-                x = int(an_entity['Pos'].split('BlockPos')[1].replace(' ', '')[1:-1].split(',')[0].split('=')[1])
-                z = int(an_entity['Pos'].split('BlockPos')[1].replace(' ', '')[1:-1].split(',')[1].split('=')[1])
-                y = int(an_entity['Pos'].split('BlockPos')[1].replace(' ', '')[1:-1].split(',')[2].split('=')[1])
-
-                self.entities_location[an_entity['item']].append('{},{},{}'.format(x,z,y))
-                # self.entities_location[an_entity['item']].append(location)
-
-            self.map_size = self.map['size']
-            self.x_max, self.z_max, self.y_max = self.map_size
-            self.map_origin = self.map['origin']
-
-        elif parameter == 'NONAV':
-            # Finding x_max, y_max and items_id from SENSE_ALL NONAV
-            # Storing all the locations of items in items_location to be used in run_TP_TO_and_update_map
-            self.x_max, self.y_max = 0, 0
-            items_list = []
-
-            self.items_location = {}  # contains item's name and its locations in env.
-            for xzy, item in self.map.items():
-                items_list.append(item['name'])
-                self.items_location.setdefault(item['name'], [])
-                self.items_location[item['name']].append(xzy)
-
-                x, y = int(xzy.split(',')[0]), int(xzy.split(',')[2])
-                if x > self.x_max:
-                    self.x_max = x
-                if y > self.y_max:
-                    self.y_max = y
-
-            self.x_max += 1
-            self.y_max += 1
-
-            # for item in self.ingredients_quantity_dict:
-            #     items_list.append(item)
-            #     for i, ingredients_quantity_dict in enumerate(self.ingredients_quantity_dict[item]):
-            #         for ingredient in self.ingredients_quantity_dict[item][i]:
-            #             items_list.append(ingredient)
-
-            # items_list = set(items_list)
-
-            # Assigning an id for each item in env.
-            if set_agent_id:
-                self.items_id.setdefault('agent', len(self.items_id) + 1)
-
-            for item in sorted(set(items_list)):
-                self.items_id.setdefault(item, len(self.items_id) + 1)
-
-            if self.num_types == 0:
-                self.num_types = len(self.items_id)+1
-
-            # Filling a 2D list to plot as map
-            self.map_to_plot = np.zeros((self.y_max, self.x_max))  # Y (row) is before X (column) in matrix
-
-            for xzy, item in self.map.items():
-                x, y = int(xzy.split(',')[0]), int(xzy.split(',')[2])
-                self.map_to_plot[y][x] = self.items_id[item['name']]
-
-            #don't want binary map to include entities
-            self.binary_map = np.where(self.map_to_plot == self.items_id['minecraft:air'], 0, 1)
-
-            self.entities_location = {}  # contains entity's name and its locations in env.
-            for location, entity in self.entities.items():
-                self.items_id.setdefault(entity['item'], len(self.items_id) + 1)
-                self.entities_location.setdefault(entity['item'], [])
-                # self.entities_location[entity['item']].append(location)
-
-                x = int(entity['Pos'].split('BlockPos')[1].replace(' ', '')[1:-1].split(',')[0].split('=')[1])
-                z = int(entity['Pos'].split('BlockPos')[1].replace(' ', '')[1:-1].split(',')[1].split('=')[1])
-                y = int(entity['Pos'].split('BlockPos')[1].replace(' ', '')[1:-1].split(',')[2].split('=')[1])
-
-                self.entities_location[entity['item']].append('{},{},{}'.format(x,z,y))
-
-                #separate set of ids for blocks and entities in map
-                self.map_to_plot[y][x] = self.items_id[entity['item']]+self.num_types
-
-            if set_agent_id:
-                x, z, y = self.player['pos']
-                self.map_to_plot[y][x] = self.items_id['agent']
-
-            # self.binary_map = np.where(self.map_to_plot == self.items_id['minecraft:air'], 0, 1)
-
-        # EW: Wasn't storing selected item anywhere, setting here from senseall
-        self.selected_item = sense_all_output['inventory']['selectedItem']['item']
-        try:
-            self.selected_item_id = self.items_id[self.selected_item]
-        except:
-            # Equate holding air to holding nothing
-            self.selected_item_id = 0
-
-        self.write_to_csv(command, sense_all_output)  # Keep in the end as it saves processed attributes
-
-        return sense_all_command_result
-
-    # Methods that interact or change the environment
-
-    def run_TP_TO_and_update_map(self, location):
-        """
-        Teleport to given location and update its command_result
-        """
-
-        command = 'TP_TO ' + location
-        output = self.send_command(command)
-        self.write_to_csv(command, output)
-
-        sleep_and_display(1)  # takes time to teleport
-
-        tp_to_command_result = output['command_result']
-        if self.render_bool:
-            sense_all_command_result = self.visualize_env_2d()
-        else:
-            sense_all_command_result = self.run_SENSE_ALL_and_update(parameter='NONAV')  # Give all item's location
-
-        return tp_to_command_result, sense_all_command_result
-
-    def run_MOVE_and_update_location(self, move_command):
-        """
-        Run a move command and update agent's location
-        Use it for commands that changes agent's location in the env. like:
-        'MOVE_FORWARD','MOVE_NORTH','MOVE_SOUTH','MOVE_EAST','MOVE_WEST'
-        """
-
-        move_output = self.send_command(move_command)
-        self.write_to_csv(move_command, move_output)
-
-        if self.render_bool:
-            sense__command_result = self.visualize_env_2d(sense_location=True)
-        else:
-            # sense__command_result = self.run_SENSE_LOCATIONS_and_update() # does not update blockInFront
-            sense__command_result = self.run_SENSE_ALL_and_update()
-
-        return move_output['command_result'], sense__command_result
-
-    def run_CRAFT_and_update_inventory(self, item_to_craft):
-        """
-        CRAFT given item by finding its recipe from the RESET command
-        If RESET does not has its recipe, just pass the complete "CRAFT" command with required parameters
-        """
-
-        # print("Crafting: ", item_to_craft)
-        # To create the same item, there can be different recipes, stored in different elements of self.recipes list
-        # Trying each recipe until SUCCESS
-        if item_to_craft in self.recipes:
-
-            for a_recipe in self.recipes[item_to_craft]:
-
-                command = "CRAFT " + str(1) + " "  # Always craft 1 recipe
-                for a_ingredient in range(len(a_recipe['ingredients'])):
-                    if a_recipe['ingredients'][str(a_ingredient)] != None:
-                        command += a_recipe['ingredients'][str(a_ingredient)]['Item'] + " "
-                    else:
-                        command += "0 "
-                command = command[:-1]
-
-                """
-                Items that needs 4 items to crafted, may not need to be near crafting table,
-                so passing only 4 items in slots: 0, 1, 3, 4
-                """
-                craft_command_list = np.array(command.split(' '))
-                if len(craft_command_list) == 11:
-                    crafting_table_needed = False
-                    for i in [4, 7, 8, 9, 10]:
-                        if craft_command_list[i] != '0':
-                            crafting_table_needed = True
-                    if not crafting_table_needed:
-                        command = " ".join(craft_command_list[np.array([0, 1, 2, 3, 5, 6])])
-
-                output = self.send_command(command)
-                craft_command_result = output['command_result']
-                if craft_command_result['result'] == 'SUCCESS':
-                    self.write_to_csv(command, output)
-                    return craft_command_result, self.run_SENSE_INVENTORY_and_update()  # update the inventory
-                # else:
-                    # print("The recipe did not worked, trying another recipe or exiting ...")
-                    # print("Command message: ", craft_command_result['message'])
-            self.write_to_csv(command, output)
-            return craft_command_result, self.run_SENSE_INVENTORY_and_update()  # return if FAIL
-        else:
-            output = self.send_command(item_to_craft)
-            craft_command_result = output['command_result']
-            self.write_to_csv(item_to_craft, output)
-            return craft_command_result, self.run_SENSE_INVENTORY_and_update()
-
-    def run_a_command_and_update_map(self, a_command, sleep_time=0):
-        """
-        Run a command and update map
-        Use it for commands that changes item's position in the env. like:
-        'RESET', 'BREAK_BLOCK', 'PLACE_TREE_TAP', 'EXTRACT_RUBBER'
-        """
-
-        if a_command is not None:
-            a_command_output = self.send_command(a_command)
-            self.write_to_csv(a_command, a_command_output)
-            if sleep_time:
-                sleep_and_display(sleep_time)
-
-        if self.render_bool:
-            sense_all_command_result = self.visualize_env_2d()
-        else:
-            if a_command.split()[0] == 'RESET':
-                sense_all_command_result = self.run_SENSE_ALL_and_update(parameter='NONAV', sense_recipes=True)  # Give all item's location
-            else:
-                sense_all_command_result = self.run_SENSE_ALL_and_update(parameter='NONAV')  # Give all item's location
-
-        return a_command_output['command_result'], sense_all_command_result
-
-    def execute_action(self, action):
-        """
-        A wrapper function that performs action and sense accourding to that action
-        """
-
-        if action.split(' ')[0].upper() in self.move_commands:
-            move_output_command_result, sense__command_result = self.run_MOVE_and_update_location(action)
-            return move_output_command_result, sense__command_result
-        # elif action in self.recipes:
-        elif action.split()[0].upper() == 'CRAFT':
-            craft_command_result, sense_inventory_command_result = self.run_CRAFT_and_update_inventory(action.split()[1])
-            return craft_command_result, sense_inventory_command_result
-        else:
-            a_command_result, sense_all_command_result = self.run_a_command_and_update_map(action)
-            return a_command_result, sense_all_command_result
-
-    def visualize_env_2d(self, sense_location=False):
-
-        if sense_location:
-            # sense__command_result = self.run_SENSE_LOCATIONS_and_update() # does not update blockInFront
-            sense__command_result = self.run_SENSE_ALL_and_update()
-        else:
-            sense__command_result = self.run_SENSE_ALL_and_update(parameter='NONAV')  # Give all item's location
-
-        x, z, y = self.player['pos']
-
-        x2, y2 = 0, 0
-        if self.player['facing'] == 'NORTH':
-            x2, y2 = 0, -0.01
-        elif self.player['facing'] == 'SOUTH':
-            x2, y2 = 0, 0.01
-        elif self.player['facing'] == 'WEST':
-            x2, y2 = -0.01, 0
-        elif self.player['facing'] == 'EAST':
-            x2, y2 = 0.01, 0
-
-        plt.figure("Polycraft World", figsize=[5, 4.5])
-        plt.imshow(self.map_to_plot, cMAP="gist_ncar")
-        plt.arrow(x, y, x2, y2, head_width=0.7, head_length=0.7, color='white')
-        plt.title('NORTH\n' + 'Agent is facing ' + self.player['facing'])
-        plt.xlabel('SOUTH')
-        plt.ylabel('WEST')
-        plt.colorbar()
-        plt.pause(0.01)
-        plt.clf()
-
-        return sense__command_result
-
-
-# Adapted from env_v2.py
-
-
-# from polycraft_tufts.envs.polycraft_interface import PolycraftInterface
-from polycraft_tufts.rl_agent.dqn_lambda.envs.polycraft_interface import PolycraftInterface
-
-# Env class to interface between polycraft socket connection and RL agents
-class PolycraftMDP(PolycraftInterface):
-
-    def __init__(self, use_trade, socket=None, host=None, port=None, task=None, agent_view_size=4, render=False, SIMULATE=False, using_ng=False):
-
-        if (SIMULATE):
-            return
-        PolycraftInterface.__init__(self, use_trade, socket, host, port, task, render_bool=render, save_json=False, using_ng=using_ng)
-        # PolycraftInterface.__init__(self, host, port, task, render_bool=render, save_json=False)
-
-        # local view size
-        self.agent_view_size = agent_view_size
-        self.task = task
-
-        # Desired actions for RL agent prenovelty
-        # actions_id = {
-        #     'MOVE w': 0,
-        #     'TURN -90': 1,
-        #     'TURN 90': 2,
-        #     'BREAK_BLOCK': 3,
-        #     'PLACE_TREE_TAP': 4,
-        #     'EXTRACT_RUBBER': 5,
-        #     # Create craft actions for every recipe from current state of PolycraftInterface
-        #     'polycraft:wooden_pogo_stick': 6,
-        #     'polycraft:tree_tap': 7,
-        #     'minecraft:planks': 8,
-        #     'minecraft:stick': 9,
-        #     # Create select actions for every item from current state of PolycraftInterface
-        #     'SELECT_ITEM polycraft:wooden_pogo_stick': 10,
-        #     'SELECT_ITEM polycraft:tree_tap': 11,
-        #     'SELECT_ITEM minecraft:planks': 12,
-        #     'SELECT_ITEM minecraft:stick': 13,
-        #     'SELECT_ITEM minecraft:crafting_table': 14,
-        #     'SELECT_ITEM polycraft:sack_polyisoprene_pellets': 15,
-        #     'SELECT_ITEM minecraft:log': 16,
-        # }
-
-        self.observation_space = None
-        self.action_space = None
-        self.accumulated_step_cost = 0
-        self.last_step_cost = 0
-        self.novel_items = []
-        self.all_items = []
-        self.first_space_init = False
-        self.mdp_items_id = {}
-        self.num_types = 0
-        if not use_trade:
-            self.generate_obs_action_spaces()
-            self.first_space_init = False
-
-    def set_items_id(self, items):
-        # items_id = {}
-        self.all_items = [None for i in range(len(items))]
-        if 'minecraft:air' in items:
-            #This should always be 0
-            self.mdp_items_id['minecraft:air'] = 0
-            # items_id['minecraft:air'] = 0
-            # self.all_items.append('minecraft:air')
-            self.all_items[0] = 'minecraft:air'
-        # for item in sorted(items):
-        for item in items:
-            if item != 'minecraft:air':
-                if 'minecraft:air' in items:
-                    self.mdp_items_id.setdefault(item, len(self.mdp_items_id))
-                    # items_id[item] = len(items_id)
-                else:
-                    self.mdp_items_id.setdefault(item, len(self.mdp_items_id)+1)
-                    # items_id[item] = len(items_id) + 1
-                # self.all_items.append(item)
-                self.all_items[self.mdp_items_id[item]] = item
-
-        # return items_id
-
-    def generate_obs_action_spaces(self, new_items=[]):
-        # #MDP items_id must be same as env items_id, but we want to include items that the env has not seen before
-        # #Since items_id is updated as we go on, copying items_id should actually always be fine as is
-        # self.all_items = []
-        # self.mdp_items_id = self.items_id.copy()
-        # for item in new_items:
-        #     if item not in self.mdp_items_id:
-        #         self.mdp_items_id[item] = len(items_id)
-        # #Notion used to prioritize reset states
-        # self.novel_items = []
-        # for item in self.mdp_items_id:
-        #     self.all_items.append(item)
-        #     if item not in ['minecraft:air', 'minecraft:bedrock', 'minecraft:crafting_table', 'minecraft:log',
-        #                     'minecraft:planks', 'minecraft:stick', 'polycraft:tree_tap', 'polycraft:wooden_pogo_stick',
-        #                     'polycraft:sack_polyisoprene_pellets']:
-        #         self.novel_items.append(item)
-
-        # self.novel_items = []
-        novel_items = []
-        # Want complete list of items_ids, not just whats in map
-        # Take everything that's currently in the map and part of crafting world
-        # TODO: Need to do this smarter, if completed items pops up in the middle of a
-        #           round but post 'novelty-detection', this will not pick it up
-        # If we have knowledge of the new item from any point, pass it in the new_items arg
-        item_list = []
-        for item in self.ingredients_quantity_dict:
-            item_list.append(item)
-            for i, ingredients_quantity_dict in enumerate(self.ingredients_quantity_dict[item]):
-                for ingredient in self.ingredients_quantity_dict[item][i]:
-                    item_list.append(ingredient)
-
-        #Anything passed in new_items that wasn't found elsewhere
-        for item in new_items:
-            if item not in item_list:
-                item_list.append(item)
-
-        item_list = set(list(item_list) + list(self.items_location.keys())  + list(self.inventory_quantity_dict.keys()))
-
-        if '' in item_list:
-            item_list.remove('')
-
-        #indicate new items as novel
-        for item in item_list:
-            if item not in ['minecraft:air', 'minecraft:bedrock', 'minecraft:crafting_table', 'minecraft:log',
-                            'minecraft:planks', 'minecraft:stick', 'polycraft:tree_tap', 'polycraft:wooden_pogo_stick',
-                            'polycraft:sack_polyisoprene_pellets']:
-                novel_items.append(item)
-                if self.first_space_init:
-                    if item not in self.novel_items:
-                        print('WARNNING - Novel item {} has been discovered since last MDP action/obs space init, observations prior to and after this point will be mismatched'.format(item))
-                # self.novel_items.append(item)
-
-        self.novel_items = novel_items
-
-        # self.mdp_items_id = self.set_items_id(item_list)
-        self.set_items_id(item_list)
-
-        #Need items_id to be aligned with MDP items id
-        #TODO: ask Gyan if I can change this
-        self.items_id = self.mdp_items_id.copy()
-        # print('mdp items', self.mdp_items_id)
-        # print('items', self.items_id)
-        # print(self.all_items)
-
-        self.mdp_inventory_items = list(self.mdp_items_id.keys())
-        if 'minecraft:air' in self.mdp_inventory_items:
-            self.mdp_inventory_items.remove('minecraft:air')
-        if 'minecraft:bedrock' in self.mdp_inventory_items:
-            self.mdp_inventory_items.remove('minecraft:bedrock')
-        #remove pogostick?
-
-        #Need some notion of entities in the obs space
-        #I believe adding a new type for each id to differentiate between block and entity
-        #  and extending relcoords to each of those is too much
-        #Entities are also weird to put in the map because they can pop out on top of blocks
-        #Solution - just add notion of how many entities of each id are in the world? So the agent
-        #   can know when it caused an entity to pop up or pick one up. Downside is don't know how close
-        #   to one we are, but picking them up should be handled in reset_to_interesting_state
-        # self.mdp_entity_items = list(self.mdp_items_id.keys())
-        # if 'minecraft:air' in self.mdp_inventory_items:
-        #     self.mdp_inventory_items.remove('minecraft:air')
-        # if 'minecraft:bedrock' in self.mdp_inventory_items:
-        #     self.mdp_inventory_items.remove('minecraft:bedrock')
-        #TODO: Best solution:
-        # Only add notion of entity count if we've seen it post-novelty (+ blocks we know it's possible)
-        # Extend action space to include pick_up actions for entities?
-        #   move to and pick up entity if in map - *But what if can't motion plan? Just as confusing for the agent
-        #   otherwise give greater neg reward
-
-
-        # print(self.items_id)
-        # print(self.recipes.keys())
-        # print(self.inventory_items)
-
-        # Generate all actions from current state of env and set action space
-        # TODO: make sure at this point whatever novel object is present in env to be included
-        self.manip_actions =  ['MOVE w',
-                               'TURN -90',
-                               'TURN 90',
-                               'BREAK_BLOCK',
-                               'PLACE_TREE_TAP',
-                               'EXTRACT_RUBBER']
-
-        # Add place_crafting_table to action list -> we can break it but not put it back currently
-        self.manip_actions.append('PLACE_CRAFTING_TABLE')
-
-        # Should crafting table be a recipe?
-        self.crafting_actions = ['CRAFT ' + item for item in self.recipes.keys()]
-
-        # REMOVE CRAFT crafting_table - don't think this is present in tournament, but is in API
-        if 'CRAFT minecraft:crafting_table' in self.crafting_actions:
-            self.crafting_actions.remove('CRAFT minecraft:crafting_table')
-
-        # self.select_actions =  ['SELECT_ITEM polycraft:wooden_pogo_stick',
-        #                         'SELECT_ITEM polycraft:tree_tap',
-        #                         'SELECT_ITEM minecraft:planks',
-        #                         'SELECT_ITEM minecraft:stick',
-        #                         'SELECT_ITEM minecraft:crafting_table',
-        #                         'SELECT_ITEM polycraft:sack_polyisoprene_pellets',
-        #                         'SELECT_ITEM minecraft:log']
-        self.select_actions = ['SELECT_ITEM ' + item for item in self.mdp_inventory_items]
-
-        # TODO: planner has deselect action, but I don't see how you can deselect an item through API
-        #   The initial selected_item is '', but there's no command I see to select nothing
-        # And USE_HAND is different than break without object
-        # print(self.execute_action('SELECT_ITEM '))
-        # input('wait')
-
-        # For testing purposes to assert that everything is working
-        # self.manip_actions =  ['MOVE w',
-        #                        'TURN -90',
-        #                        'TURN 90']
-        # self.crafting_actions = []
-        # self.select_actions = []
-
-        self.all_actions = self.manip_actions + self.crafting_actions + self.select_actions
-        self.actions_id = {}
-        for i in range(len(self.all_actions)):
-            self.actions_id[self.all_actions[i]] = i
-        # print(self.actions_id)
-        self.action_space = spaces.Discrete(len(self.actions_id))
-
-        # TODO: compute max possible number of items given an env? or just set to arbitrary cap
-        self.max_items = 20
-        # Make observation_space
-        agent_map_size = (self.agent_view_size + 1) ** 2
-        low_agent_map = np.zeros(agent_map_size)
-        high_agent_map = (len(self.mdp_items_id)+1) * np.ones(agent_map_size)
-        low_orientation = np.array([0])
-        high_orientation = np.array([4])
-        y_max, x_max = self.map_to_plot.shape
-        # How many rel_coords items are we going to use? All possible?
-        self.interesting_items = OrderedDict(self.mdp_items_id.copy())
-        for item in ['minecraft:air', 'minecraft:bedrock', 'minecraft:planks', 'minecraft:stick', 'polycraft:sack_polyisoprene_pellets','polycraft:wooden_pogo_stick']:
-            try:
-                del self.interesting_items[item]
-            except:
-                continue
-        #for moveTo obs reformatting
-        self.interesting_items_ids = {}
-        for item in self.interesting_items:
-            self.interesting_items_ids[item] = len(self.interesting_items_ids)
-
-        low_rel_coords = np.array([[-x_max, y_max] for i in range(len(self.interesting_items))]).flatten()
-        high_rel_coords = np.array([[x_max, y_max] for i in range(len(self.interesting_items))]).flatten()
-        low_map = np.concatenate((low_agent_map, low_orientation, low_rel_coords))
-        high_map = np.concatenate((high_agent_map, high_orientation, high_rel_coords))
-        low = np.concatenate((low_map,[0],np.zeros(len(self.mdp_inventory_items))))
-        high = np.concatenate((high_map, [len(self.mdp_items_id)+1], self.max_items*np.ones(len(self.mdp_inventory_items))))
-        self.observation_space = spaces.Box(low, high, dtype=np.float32)
-
-        # print(self.get_nearest_items())
-
-        #No notion of selected item anywhere? Assuming we are holding nothing to start
-        #       NOT ALWAYS GOING TO BE TRUE
-        # self.selected_item = 'minecraft:air'
-        # self.selected_item_id = 0
-        # self.selected_item_id = self.items_id[self.selected_item]
-
-        # Need to update map using updated items_id set
-        sense_all_command_result = self.run_SENSE_ALL_and_update('NONAV')
-        self.accumulated_step_cost += sense_all_command_result['stepCost']
-
-        self.num_types = len(self.mdp_items_id)+1
-
-        print('updated items, recipes, and actions in MDP')
-        print('Items: ', self.mdp_items_id)
-        print('Craft items: ', self.recipes.keys())
-        print('Actions: ', self.actions_id)
-        self.first_space_init = True
-
-
-
-    def step(self, action_id):
-        # action_id = int(input('action'))
-        action = self.all_actions[action_id]
-
-        # Need to map to action string?
-        action_result, sense_result = self.execute_action(action)
-
-        self.accumulated_step_cost += action_result['stepCost'] + sense_result['stepCost']
-        self.last_step_cost = action_result['stepCost'] + sense_result['stepCost']
-        obs = self.observation()
-        info = self.get_info()
-        # info['last_step_cost'] = action_result['stepCost'] + sense_all_result['stepCost']
-
-        return obs, None, None, info
-
-    def get_info(self):
-
-        # info = {'bin_map': self.binary_map, 'map_limits': (self.x_max, self.y_max), \
-        info = {'items_locs': self.items_location, \
-                'entities_locs': self.entities_location, \
-                'block_in_front': self.block_in_front, \
-                'inv_quant_dict': self.inventory_quantity_dict, \
-                # 'inv_quant_list': self.inventory_list, \
-                # 'ingred_quant_dict': self.ingredients_quantity_dict, \
-                'player': self.player,  # 'local_view_size': self.local_view_size, \
-                'selected_item': self.selected_item,
-                'total_step_cost': self.accumulated_step_cost,
-                'last_step_cost': self.last_step_cost}
-
-        return info
-
-    def reset(self, task=None):
-        if task is None:
-            task = self.task
-        self.accumulated_step_cost = 0
-        a_command_result, sense_all_command_result = self.run_a_command_and_update_map(task, sleep_time=5)
-        self.accumulated_step_cost += a_command_result['stepCost'] + sense_all_command_result['stepCost']
-        obs = self.observation()
-        return obs
-
-
-    def observation(self):
-        # this function computes the complete state representation and returns it
-
-        # generate the local view
-        local_view = self.generate_local_view()
-
-        # generate relative coordinates to nearest items of interesting types
-        nearest_items = self.get_nearest_items()
-
-        # generate inventory qunatities
-        inventory = self.generate_inv_list()
-
-        facing_id = {'NORTH': 0, 'SOUTH': 1, 'WEST': 2, 'EAST': 3}[self.player["facing"]]
-        # TODO: No notion of selected item anywhere?
-        state = np.concatenate((local_view.flatten(), [facing_id], nearest_items.flatten(), [self.selected_item_id], inventory))
-        # print(state)
-
-        # state.astype(np.float).ravel()
-
-        return state
-
-    def generate_local_view(self):
-        # this function returns the local view of the agent in the map
-        # with a binary map, 0 for nothing and 1 for something
-
-        # pad the map
-        p_width = self.agent_view_size // 2 + 1
-        padded_map = np.pad(self.map_to_plot,
-                            pad_width=p_width,
-                            mode='constant',
-                            constant_values=0.0)
-
-        # player's current position in the padded map
-        self.player_pose_x = self.player['pos'][0] + p_width
-        self.player_pose_y = self.player['pos'][2] + p_width
-
-        # cut the local view
-        local_view = padded_map[ \
-                     self.player_pose_y - int(self.agent_view_size / 2):self.player_pose_y + int(
-                         self.agent_view_size / 2) + 1, \
-                     self.player_pose_x - int(self.agent_view_size / 2):self.player_pose_x + int(
-                         self.agent_view_size / 2) + 1 \
-                     ]
-
-        # rotate the local view based on the agents orientation
-        rots = 0
-        if (self.player["facing"] == "NORTH"):
-            pass
-        elif (self.player["facing"] == "WEST"):
-            rots -= 1
-        elif (self.player["facing"] == "SOUTH"):
-            rots -= 2
-        elif (self.player["facing"] == "EAST"):
-            rots += 1
-
-        local_view = np.rot90(local_view, rots)
-
-        # print(local_view)
 
         return local_view
 
@@ -3605,9 +2174,7 @@ class PolycraftMDP(PolycraftInterface):
                             nearest_coords[item_id] = (agent_y - i, j - agent_x)
         return nearest_coords[list(self.interesting_items.values())]
 
-
     def generate_inv_list(self):
-        # print(self.inventory_list)
         inv = []
         for item in self.mdp_inventory_items:
             if item in self.inventory_quantity_dict:
@@ -3616,77 +2183,6 @@ class PolycraftMDP(PolycraftInterface):
                 inv.append(0)
         return inv
 
-    #
-    # def action_valid(self, action):
-    #     # print(action)
-    #     # print ("INVENTORY_QUANTITY_DICT = {}".format(self.inventory_quantity_dict))
-    #     # print ("BLOCK_IN_FRONT = {}".format(self.block_in_front['name']))
-    #     # print ("RECIPES = {}".format(self.recipes))
-    #
-    #     # this boolean function returns if the current action is valid or not
-    #     # print ("Inventory dict = {}".format(self.inventory_quantity_dict))
-    #     if action in self.generic_actions:
-    #         return self.check_for_further_valid_movement(action)
-    #         # return True
-    #
-    #     elif action == 'BREAK_BLOCK':
-    #         if self.block_in_front['name'] == 'minecraft:log':
-    #             return True
-    #         else:
-    #             return False
-    #
-    #     elif action == 'minecraft:planks':
-    #         # print ("INVENTORY_QUANTITY_DICT = {}".format(self.inventory_quantity_dict))
-    #         if 'minecraft:log' in self.inventory_quantity_dict.keys() and \
-    #                 self.inventory_quantity_dict['minecraft:log'] >= 1:
-    #             return True
-    #         else:
-    #             return False
-    #
-    #     elif action == 'minecraft:stick':
-    #         if 'minecraft:planks' in self.inventory_quantity_dict.keys() and self.inventory_quantity_dict[
-    #             'minecraft:planks'] >= 2:
-    #             return True
-    #         else:
-    #             return False
-    #
-    #     elif action == 'PLACE_TREE_TAP' or action == 'EXTRACT_RUBBER':
-    #         # search the location of trees and check if
-    #         # the agent is two blocks away and
-    #         # facing correctly
-    #         return self.check_for_further_validity()
-    #
-    #     elif action == 'polycraft:tree_tap':
-    #         if 'minecraft:planks' in self.inventory_quantity_dict.keys() and 'minecraft:stick' in self.inventory_quantity_dict.keys() and \
-    #                 self.inventory_quantity_dict['minecraft:planks'] >= 5 and self.inventory_quantity_dict[
-    #             'minecraft:stick'] >= 1 and \
-    #                 self.block_in_front['name'] == 'minecraft:crafting_table':
-    #             return True
-    #         else:
-    #             return False
-    #     # POGO_STICK can only be crafted if the agent has bag and
-    #     # is in front of the CRAFTING_TABLE
-    #     elif action == 'polycraft:wooden_pogo_stick':
-    #         # print ("When action taken in wooden pogo stick")
-    #         # print ("INV QUANT DICTIONARY_Keys = {}".format(self.inventory_quantity_dict.keys()))
-    #         # print ("bags = {}".format(self.inventory_quantity_dict['polycraft:sack_polyisoprene_pellets']))
-    #         # print ("sticks = {}".format(self.inventory_quantity_dict['minecraft:stick']))
-    #         # print ("Planks = {}".format(self.inventory_quantity_dict['minecraft:planks']))
-    #         # print ("Block in front = {}".format(self.block_in_front['name']))
-    #         if 'polycraft:sack_polyisoprene_pellets' in self.inventory_quantity_dict.keys() and 'minecraft:stick' in self.inventory_quantity_dict.keys() and 'minecraft:planks' in self.inventory_quantity_dict.keys() and \
-    #                 self.inventory_quantity_dict['polycraft:sack_polyisoprene_pellets'] >= 1 and \
-    #                 self.inventory_quantity_dict['minecraft:stick'] >= 4 and self.inventory_quantity_dict[
-    #             'minecraft:planks'] >= 2 and \
-    #                 self.block_in_front['name'] == 'minecraft:crafting_table':
-    #             return True
-    #         else:
-    #             return False
-    #     # in all other cases there is an error
-    #     else:
-    #         # print (Fore.GREEN + "ACTION = {}".format(action))
-    #         # print(Fore.RED + " ACTION : {} ERROR: INVALID ACTION ENTERED".format(action))
-    #         print(" ACTION : {} ERROR: INVALID ACTION ENTERED".format(action))
-    #
     def check_for_further_validity(self, any=False):
         # this checks for further validity of the action based on
         # the agent needs to be two blocks away from the log and facing it
@@ -3702,256 +2198,27 @@ class PolycraftMDP(PolycraftInterface):
             x -= 1
 
         if any:
-            if self.map_to_plot[y+1][x] != self.mdp_items_id['minecraft:air'] and self.map_to_plot[y+1][x] != self.mdp_items_id['minecraft:bedrock'] and self.map_to_plot[y+1][x] != self.mdp_items_id['minecraft:log']:
+            if self.map_to_plot[y+1][x] != self.mdp_items_id[AIR_STR] and self.map_to_plot[y+1][x] != self.mdp_items_id[WALL_STR] and self.map_to_plot[y+1][x] != self.mdp_items_id[LOG_STR]:
                 return True
-            elif self.map_to_plot[y-1][x] != self.mdp_items_id['minecraft:air'] and self.map_to_plot[y+1][x] != self.mdp_items_id['minecraft:bedrock'] and self.map_to_plot[y+1][x] != self.mdp_items_id['minecraft:log']:
+            elif self.map_to_plot[y-1][x] != self.mdp_items_id[AIR_STR] and self.map_to_plot[y+1][x] != self.mdp_items_id[WALL_STR] and self.map_to_plot[y+1][x] != self.mdp_items_id[LOG_STR]:
                 return True
-            elif self.map_to_plot[y][x-1] != self.mdp_items_id['minecraft:air'] and self.map_to_plot[y+1][x] != self.mdp_items_id['minecraft:bedrock'] and self.map_to_plot[y+1][x] != self.mdp_items_id['minecraft:log']:
+            elif self.map_to_plot[y][x-1] != self.mdp_items_id[AIR_STR] and self.map_to_plot[y+1][x] != self.mdp_items_id[WALL_STR] and self.map_to_plot[y+1][x] != self.mdp_items_id[LOG_STR]:
                 return True
-            elif self.map_to_plot[y][x+1] != self.mdp_items_id['minecraft:air'] and self.map_to_plot[y+1][x] != self.mdp_items_id['minecraft:bedrock'] and self.map_to_plot[y+1][x] != self.mdp_items_id['minecraft:log']:
+            elif self.map_to_plot[y][x+1] != self.mdp_items_id[AIR_STR] and self.map_to_plot[y+1][x] != self.mdp_items_id[WALL_STR] and self.map_to_plot[y+1][x] != self.mdp_items_id[LOG_STR]:
                 return True
             else:
                 return
         else:
-            if self.map_to_plot[y+1][x] == self.mdp_items_id['minecraft:log']:
+            if self.map_to_plot[y+1][x] == self.mdp_items_id[LOG_STR]:
                 return True
-            elif self.map_to_plot[y-1][x] == self.mdp_items_id['minecraft:log']:
+            elif self.map_to_plot[y-1][x] == self.mdp_items_id[LOG_STR]:
                 return True
-            elif self.map_to_plot[y][x-1] == self.mdp_items_id['minecraft:log']:
+            elif self.map_to_plot[y][x-1] == self.mdp_items_id[LOG_STR]:
                 return True
-            elif self.map_to_plot[y][x+1] == self.mdp_items_id['minecraft:log']:
+            elif self.map_to_plot[y][x+1] == self.mdp_items_id[LOG_STR]:
                 return True
             else:
                 return False
-
-        # flag = False
-        #
-        #
-        # for i in range(len(self.locations_logs)):
-        #     loc = list(map(int, str.split(self.locations_logs[i], ',')))
-        #     # print(loc)
-        #     # if facing any direction there are three cases:
-        #     # A: two blocks away B: 2 diagonal blocks away cases
-        #     if self.player['facing'] == 'NORTH':
-        #         if self.player['pos'][0] == loc[0] and \
-        #                 self.player['pos'][2] == loc[2] + 2:
-        #             flag = True
-        #             break
-        #         elif self.player['pos'][0] == loc[0] - 1 \
-        #                 and self.player['pos'][2] == loc[2] + 1:
-        #             flag = True
-        #             break
-        #         elif self.player['pos'][0] == loc[0] + 1 and \
-        #                 self.player['pos'][2] == loc[2] + 1:
-        #             flag = True
-        #             break
-        #     elif self.player['facing'] == 'SOUTH':
-        #         if self.player['pos'][0] == loc[0] and \
-        #                 self.player['pos'][2] == loc[2] - 2:
-        #             flag = True
-        #             break
-        #         elif self.player['pos'][0] == loc[0] - 1 and \
-        #                 self.player['pos'][2] == loc[2] - 1:
-        #             flag = True
-        #             break
-        #         elif self.player['pos'][0] == loc[0] + 1 and \
-        #                 self.player['pos'][2] == loc[2] - 1:
-        #             flag = True
-        #             break
-        #     elif self.player['facing'] == 'EAST':
-        #         if self.player['pos'][0] == loc[0] - 2 and \
-        #                 self.player['pos'][2] == loc[2]:
-        #             flag = True
-        #             break
-        #         elif self.player['pos'][0] == loc[0] - 1 and \
-        #                 self.player['pos'][2] == loc[2] - 1:
-        #             flag = True
-        #             break
-        #         elif self.player['pos'][0] == loc[0] - 1 and \
-        #                 self.player['pos'][2] == loc[2] + 1:
-        #             flag = True
-        #             break
-        #     elif self.player['facing'] == 'WEST':
-        #         if self.player['pos'][0] == loc[0] + 2 and \
-        #                 self.player['pos'][2] == loc[2]:
-        #             flag = True
-        #             break
-        #         elif self.player['pos'][0] == loc[0] + 1 and \
-        #                 self.player['pos'][2] == loc[2] - 1:
-        #             flag = True
-        #             break
-        #         elif self.player['pos'][0] == loc[0] + 1 and \
-        #                 self.player['pos'][2] == loc[2] + 1:
-        #             flag = True
-        #             break
-        #     else:
-        #         flag = False
-        #     # print (Fore.BLUE + "flag = {}".format(flag))
-        # return flag
-    #
-    # def check_for_further_valid_movement(self, action):
-    #     if action in self.looking_actions:
-    #         return True
-    #     else:
-    #         position = [self.player['pos'][0], self.player['pos'][2]]
-    #         # make the dictionary of all the air values:
-    #         # check whether the movement is a valid movement or not
-    #         # self.items_location['minecraft:air']
-    #         # print ("MNECRAFT:AIR = {}".format(self.items_location['minecraft:air']))
-    #         if action == 'MOVE_NORTH':
-    #             coordinates = str(position[0]) + ',' + str(4) + ',' + str(position[1] - 1)
-    #             # print ("coordinates = {}".format(coordinates))
-    #             if coordinates in self.items_location['minecraft:air']:
-    #                 return True
-    #             else:
-    #                 return False
-    #
-    #         elif action == 'MOVE_SOUTH':
-    #             coordinates = str(position[0]) + ',' + str(4) + ',' + str(position[1] + 1)
-    #             # print ("coordinates = {}".format(coordinates))
-    #             if coordinates in self.items_location['minecraft:air']:
-    #                 return True
-    #             else:
-    #                 return False
-    #
-    #         elif action == 'MOVE_EAST':
-    #             coordinates = str(position[0] + 1) + ',' + str(4) + ',' + str(position[1])
-    #             # print ("coordinates = {}".format(coordinates))
-    #             if coordinates in self.items_location['minecraft:air']:
-    #                 return True
-    #             else:
-    #                 return False
-    #
-    #         elif action == 'MOVE_WEST':
-    #             coordinates = str(position[0] - 1) + ',' + str(4) + ',' + str(position[1])
-    #             # print ("coordinates = {}".format(coordinates))
-    #             if coordinates in self.items_location['minecraft:air']:
-    #                 return True
-    #             else:
-    #                 return False
-    #
-    # # def calculate_reward(self, action, action_output):
-    #
-    # #     '''
-    # #     returns the reward on the current state
-    # #     '''
-    # #     # +1000 for crafting POGO wooden_pogo_stick
-    # #     if action == 'polycraft:wooden_pogo_stick' and action_output == 'SUCCESS':
-    # #         reward = +1000
-    # #     # +25 for CRAFTING CRAFT_STICKS, CRAFT_PLANKS and CRAFT_TREE_TAP
-    # #     elif action in self.crafting_actions and action_output == 'SUCCESS':
-    # #         reward = +25
-    # #     # +10 for using BREAK_BLOCK PLACE_TREE_TAP and EXTRACT_RUBBER correctly
-    # #     elif action in self.meta_actions and action_output == 'SUCCESS':
-    # #         reward = +10
-    # #     # -1 for every step
-    # #     else:
-    # #         # +5 for reaching near TREE and crafting_table
-    # #         if self.block_in_front['name'] in self.important_locations:
-    # #             reward = +5
-    # #         # a reward of -1 everywhere else
-    # #         else:
-    # #             reward = -1
-    #
-    # #     return reward
-    #
-    # def calculate_reward(self, action, action_output):
-    #
-    #     '''
-    #     returns the reward on the current state
-    #     '''
-    #     # +1000 for crafting POGO wooden_pogo_stick
-    #     # if action == 'polycraft:wooden_pogo_stick' and action_output == 'SUCCESS':
-    #     #     reward = +1000
-    #     # # +25 for CRAFTING CRAFT_STICKS, CRAFT_PLANKS and CRAFT_TREE_TAP
-    #     # elif action in self.crafting_actions and action_output == 'SUCCESS':
-    #     #     reward = +25
-    #     # # +10 for using BREAK_BLOCK PLACE_TREE_TAP and EXTRACT_RUBBER correctly
-    #     # elif action in self.meta_actions and action_output == 'SUCCESS':
-    #     #     reward = +10
-    #     # # -1 for every step
-    #     # else:
-    #     # +5 for reaching near TREE and crafting_table
-    #     if self.block_in_front['name'] in self.important_locations:
-    #         reward = +100
-    #     # a reward of -1 everywhere else
-    #     else:
-    #         reward = -1
-    #
-    #     return reward
-    #
-    #     # def calculate_reward(self, action, action_output):
-    #
-    # #     # this is an incremenental reward
-    # #     # give a small positive reward if the agent successfully completes a navigation TASK
-    # #     if self.block_in_front['name'] in self.important_locations:
-    # #         reward = +1
-    #
-    # #     # give a +10 reward if the agent successfully vcomplete the breakblock Action
-    # #     elif action in self.meta_actions and action_output == 'SUCCESS':
-    # #         # if the breakblock itself also result in the log grabbing:
-    # #         if self.inventory_list_dict['minecraft:log'] > self.inventory_list_dict_old['minecraft:log']:
-    # #             reward = +200
-    # #         else:
-    # #             reward = +10
-    # #       # cannot grab the info
-    #
-    # #     # if the inventory list grew and added one log
-    # #     elif self.inventory_list_dict['minecraft:log'] > self.inventory_list_dict_old['minecraft:log']:
-    # #         reward = +200
-    #
-    # #     # give a negative reward for everything else
-    # #     else:
-    # #         reward = -1
-    #
-    # #     return reward
-    #
-    # def is_terminal(self, action, action_output):
-    #     '''
-    #     boolean function returns if the state is a terminal state or not
-    #     '''
-    #
-    #     # terminal state is reached if the wooden pogo stick is successfuly made.
-    #     # if action == 'polycraft:wooden_pogo_stick' and action_output == 'SUCCESS':
-    #     #     return True
-    #
-    #     # elif action == 'BREAK_BLOCK':
-    #     #     return True
-    #
-    #     # print ("Block in Front = {}".format(self.block_in_front))
-    #
-    #     if self.block_in_front['name'] in self.important_locations:
-    #         return True
-    #
-    #     else:
-    #         return False
-    #
-    # # def is_terminal(self, action, action_output):
-    # #     '''
-    # #     boolean function returns if the state is a terminal state or not
-    # #     '''
-    #
-    # #     # terminal state is reached if the wooden pogo stick is successfuly made.
-    # #     # if action == 'polycraft:wooden_pogo_stick' and action_output == 'SUCCESS':
-    # #     #     return True
-    #
-    # #     # elif action == 'BREAK_BLOCK':
-    # #     #     return True
-    #
-    # #     # if self.block_in_front['name'] in self.important_locations:
-    # #     #     return True
-    #
-    # #     # else:
-    # #     #     return False
-    #
-    # #     # if the action is break
-    # #     if action in self.meta_actions and action_output == 'SUCCESS' and self.inventory_list_dict['minecraft:log'] > self.inventory_list_dict_old['minecraft:log']:
-    # #         return True
-    # #     elif self.inventory_list_dict['minecraft:log'] > self.inventory_list_dict_old['minecraft:log']:
-    # #         return True
-    # #     else:
-    # #         return False
-    #
 
 show_animation = False
 
