@@ -382,10 +382,10 @@ class Brain:
 
     def generate_pddls(self, env, learned_operator = None, update_flag = False):
         self.pddl_dir = "PDDL"
-        # os.makedirs(self.pddl_dir, exist_ok = True)
-        # generate_prob_pddl(self.pddl_dir, env)
-        # if learned_operator is not None:
-        #     generate_domain_pddl(self.pddl_dir, env, learned_operator)
+        os.makedirs(self.pddl_dir, exist_ok = True)
+        generate_prob_pddl(self.pddl_dir, env)
+        if learned_operator is not None:
+            generate_domain_pddl(self.pddl_dir, env, learned_operator)
     '''
     This function generates the PDDLs from the current environment instance
     ### I/P environment object
