@@ -134,7 +134,7 @@ class Brain:
         # inject novelty
         
         env = self.instantiate_env(env_id) # make a new instance of the environment.
-        env = self.inject_novelty()
+        # env = self.inject_novelty()
         obs = env.reset() 
         self.generate_pddls(env)
         print ("Actions ID from the env = {} ".format(env.actions_id))
@@ -434,7 +434,9 @@ class Brain:
         env.render()
         matching = [s for s in plan if "approach" in s]
         print ("matching = {}".format(matching))
-        for i in range (len(plan)):
+        i = 0
+        while (i < len(plan)):
+        # for i in range (len(plan)):
             print("Executing plan_step: ", plan[i])
             # print ("Taking action {} = {}".format(i,list(env.actions_id.keys())[list(env.actions_id.values()).index(plan[i])]))
             env.render()
@@ -446,29 +448,29 @@ class Brain:
                 # print ("\n sub plan = {}".format(sub_plan))
                 # plan = np.delete(plan, i) # remove that item from the plan
                 i+=1
-            # now execute the sub-plan
-            for j in range (len(sub_plan)):
-                # action_id = env.actions_id[sub_plan[j]]
-                # print ("Executing {} action from sub plan in the environment".format(env.actions_id[sub_plan[j]]))
-                obs, reward, done, info = env.step(env.actions_id[sub_plan[j]])
-                print ("Info = {}".format(info))
-                if info['result']==False:
-                    return False, plan[i]
-                env.render()
-                rew_eps += reward
-                count += 1
-                # time.sleep(3)
-                # if args['render']:
-                # if i == 1:
-                if done:
-                    if env.inventory_items_quantity[env.goal_item_to_craft] >= 1: # success measure(goal achieved)
-                        # count = step
-                        # break
-                        return True, None
+                # now execute the sub-plan
+                for j in range (len(sub_plan)):
+                    # action_id = env.actions_id[sub_plan[j]]
+                    # print ("Executing {} action from sub plan in the environment".format(env.actions_id[sub_plan[j]]))
+                    obs, reward, done, info = env.step(env.actions_id[sub_plan[j]])
+                    print ("Info = {}".format(info))
+                    if info['result']==False:
+                        return False, plan[i]
+                    env.render()
+                    rew_eps += reward
+                    count += 1
+                    # time.sleep(1)
+                    # if args['render']:
+                    # if i == 1:
+                    if done:
+                        if env.inventory_items_quantity[env.goal_item_to_craft] >= 1: # success measure(goal achieved)
+                            # count = step
+                            # break
+                            return True, None
             # go back to the planner's normal plan
             print ("Executing {} action from main plan in the environment".format(env.actions_id[plan[i]]))
             obs, reward, done, info = env.step(env.actions_id[plan[i]])
-            # time.sleep(0.2)
+            # time.sleep(3)
             print ("Info = {}".format(info))
             if info['result']==False:
                 return False, plan[i]
@@ -483,6 +485,7 @@ class Brain:
                     return True, None
             # if info.equals('FAIL'):
             #     return False, plan[i]
+            i+=1
         return False, None
 
     def evaluate_policy():
