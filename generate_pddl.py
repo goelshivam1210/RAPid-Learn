@@ -65,7 +65,7 @@ def _generate_init(env):
     else:
         init_list.append("\t\t(holding "+env.selected_item+")")
 
-    init_list.append("\t\t(near crafting_table)")
+    init_list.append("\t\t(facing "+env.block_in_front_str+")")
 
     ints = "\n".join(init_list)
     return "\n".join(["\t(:init", ints, "\t)"])

@@ -131,11 +131,15 @@ class Brain:
         # env.close()
         # sys.exit(1)
         env_id = 'NovelGridworld-Pogostick-v1' # hardcoded for now. will add the argparser later.
-        env = self.instantiate_env(env_id, None, False) # make a new instance of the environment.
+        # inject novelty
+        
+        env = self.instantiate_env(env_id) # make a new instance of the environment.
+        env = self.inject_novelty()
         obs = env.reset() 
         self.generate_pddls(env)
+        print ("Actions ID from the env = {} ".format(env.actions_id))
         plan, game_action_set = self.call_planner("domain", "problem", env) # get a plan
-        # print("game action set aftert the planner = {}".format(game_action_set))
+        print("game action set aftert the planner = {}".format(game_action_set))
         # time.sleep(10000)
 
         result, failed_action = self.execute_plan(env, game_action_set, obs)
@@ -221,6 +225,14 @@ class Brain:
         for i in range (len(ff_plan)):
             if ff_plan[i].split(" ")[0] == "approach":
                 action_set.append(ff_plan[i])
+            elif ff_plan[i].split(" ")[0] == "select":
+                print ("Action making usable  = {}".format(ff_plan[i]))
+                to_append = ff_plan[i].split(" ")
+                sep = "_"
+                to_append = sep.join(to_append).capitalize()
+                print ("to append = {}".format(to_append))
+                action_set.append(to_append)
+
             else:
                 action_set.append(ff_plan[i].split(" ")[0])
         # print (ff_plan[0].split())
@@ -236,16 +248,16 @@ class Brain:
         game_action_set = copy.deepcopy(action_set)
         # print ("game action set = {}".format(game_action_set))
         for i in range(len(game_action_set)):
-            if game_action_set[i].split(" ")[0] != "approach":
+            if game_action_set[i].split(" ")[0] != "approach" and game_action_set[i].split("_")[0] != "Select":
                 game_action_set[i] = action_map[game_action_set[i]]
         print ("game action set = {}".format(game_action_set))
         for i in range(len(game_action_set)):
             if game_action_set[i] in action_map:
                 game_action_set[i] = env.actions_id[game_action_set[i]]
-        
+        print (game_action_set)
         return action_set, game_action_set
 
-    def instantiate_env(self, env_id, novelty_family, inject):
+    def instantiate_env(self, env_id, novelty_family=None, inject=False):
         '''
          This function instantiate a new instance of the environment for the agent to interact with.
          All the novelty is injected here.
@@ -374,8 +386,18 @@ class Brain:
         ## rx and ry have all the x, y points to use and         
         # a_star = AStarPlanner(ox, oy, grid_size, robot_radius)
     
-    def inject_novelty():
-        pass
+    def inject_novelty(self):
+
+        env_id = 'NovelGridworld-Pogostick-v1'
+        env = gym.make(env_id)
+
+        novelty_name = 'axetobreak'
+        novelty_arg1 = 'wooden'
+        novelty_arg2 = ''
+        difficulty = 'easy'
+
+        env = inject_novelty(env, novelty_name, difficulty, novelty_arg1, novelty_arg2)
+        return env
     
     def run_trials():
         pass
@@ -412,7 +434,7 @@ class Brain:
         env.render()
         matching = [s for s in plan if "approach" in s]
         print ("matching = {}".format(matching))
-        for i in range (len(plan)-len(matching)):
+        for i in range (len(plan)):
             print("Executing plan_step: ", plan[i])
             # print ("Taking action {} = {}".format(i,list(env.actions_id.keys())[list(env.actions_id.values()).index(plan[i])]))
             env.render()
@@ -422,15 +444,20 @@ class Brain:
                 # call the motion planner here to generate the lower level actions
                 sub_plan = self.run_motion_planner(env, plan[i])
                 # print ("\n sub plan = {}".format(sub_plan))
-                plan = np.delete(plan, i) # remove that item from the plan
+                # plan = np.delete(plan, i) # remove that item from the plan
+                i+=1
             # now execute the sub-plan
             for j in range (len(sub_plan)):
                 # action_id = env.actions_id[sub_plan[j]]
                 # print ("Executing {} action from sub plan in the environment".format(env.actions_id[sub_plan[j]]))
                 obs, reward, done, info = env.step(env.actions_id[sub_plan[j]])
+                print ("Info = {}".format(info))
+                if info['result']==False:
+                    return False, plan[i]
                 env.render()
                 rew_eps += reward
                 count += 1
+                # time.sleep(3)
                 # if args['render']:
                 # if i == 1:
                 if done:
@@ -442,6 +469,9 @@ class Brain:
             print ("Executing {} action from main plan in the environment".format(env.actions_id[plan[i]]))
             obs, reward, done, info = env.step(env.actions_id[plan[i]])
             # time.sleep(0.2)
+            print ("Info = {}".format(info))
+            if info['result']==False:
+                return False, plan[i]
             rew_eps += reward
             count += 1
             # if args['render']:
