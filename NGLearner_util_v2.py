@@ -83,6 +83,7 @@ def check_permissible(self, action, info):
 
 # informed random action based on failed goal and last reset state
 #TODO: pass in agent to use class vars
+# SG: We are not calling this now.
 def informed_random_action(self, info):
     # FutureTODO: reason about past successful trajectories
     action_pool = []
@@ -850,7 +851,7 @@ def get_create_success_func_from_predicate(predicate_str):
             def success_func(obs, info):
                 return info['selected_item'] == predicate_str.split()[1]
             return success_func
-    elif predicate_str.split()[0] == 'near':
+    elif predicate_str.split()[0] == 'facing':
         def create_success_func(init_obs, init_info):
             def success_func(obs, info):
                 return info['block_in_front']['name'] == predicate_str.split()[1]
@@ -989,15 +990,15 @@ def get_create_success_func_from_predicate_set(predicate_list):
 def get_create_success_func_from_failed_operator(operator_str):
     # e.g. 'approach {}'.format(LOG_STR) - goal is block_in_front == obj
     if operator_str.split()[0] == APPROACH_STR:
-        return get_create_success_func_from_predicate('near {}'.format(operator_str.split()[1]))
+        return get_create_success_func_from_predicate('facing {}'.format(operator_str.split()[1]))
     # to the RL agent approach and pickup should have the same policy though
     if operator_str.split()[0] == 'pickup':
         return get_create_success_func_from_predicate_set(['increase inventory {} 1'.format(operator_str.split()[1]), 'decrease world {} 1'.format(operator_str.split()[1])])
     #e.g. break minecraft:log - real goal is inv increase obs, block in front air
     elif operator_str.split()[0] == BREAK_STR:
-        return get_create_success_func_from_predicate_set(['increase inventory {} 1'.format(operator_str.split()[1]), 'near {}'.format(AIR_STR), 'decrease world {} 1'.format(operator_str.split()[1])])
+        return get_create_success_func_from_predicate_set(['increase inventory {} 1'.format(operator_str.split()[1]), 'facing {}'.format(AIR_STR), 'decrease world {} 1'.format(operator_str.split()[1])])
     elif operator_str.split()[0] == 'place':
-        return get_create_success_func_from_predicate_set(['decrease inventory {} 1'.format(operator_str.split()[1]), 'near {}'.format(operator_str.split()[1])])
+        return get_create_success_func_from_predicate_set(['decrease inventory {} 1'.format(operator_str.split()[1]), 'facing {}'.format(operator_str.split()[1])])
     # Don't have notion of tapped_log currently
     elif operator_str == EXTRACT_STR:
         return get_create_success_func_from_predicate_set(['increase inventory {} 1'.format(RUBBER_STR)])
@@ -1664,7 +1665,7 @@ class NovelgridworldInterface:
     """
 
     def __init__(self, env, render_bool=False):
-        self.env = env
+        self.env = env #Pogostick env
         self.game_over = False
 
         ## Don't want to do socket connection if unnecessary
@@ -1705,9 +1706,12 @@ class NovelgridworldInterface:
         self.run_SENSE_RECIPES_and_update()
 
 
-    def send_command(self, command):
+    def send_command(self, command,  reset_from_failed_state = False, env_instance = None):
+
         if command.startswith == 'RESET' or command == 'RESET':
-            self.env.reset()
+            # print ("inside NG_learner_util_send_command \n items_quantity = {}\n  items_inventory_quantity = {}\n".format(items_quantity, items_inventory_quantity))
+            print ("self.env = {}".format(self.env))
+            self.env.reset( reset_from_failed_state = reset_from_failed_state, env_instance = env_instance)
             return  {'command_result' : {'command': 'RESET',
                                         'argument': None,
                                         'result': 'SUCCESS',
@@ -1772,13 +1776,14 @@ class NovelgridworldInterface:
         a_command_result, sense_all_command_result = self.run_a_command_and_sense_all(action)
         return a_command_result, sense_all_command_result
 
-    def run_a_command_and_sense_all(self, a_command, sleep_time=0):
+    def run_a_command_and_sense_all(self, a_command, sleep_time=0, reset_from_failed_state = False, env_instance = None):
         """
         Run a command and sense all
         Extending to handle any action type
         """
+        # print ("inside run_a_command_and_sense_all \n items_quantity = {}\n  items_inventory_quantity = {}\n".format(items_inventory_quantity, items_quantity))
 
-        a_command_output = self.send_command(a_command)
+        a_command_output = self.send_command(a_command,  reset_from_failed_state, env_instance)
         sense_all_command_result = self.run_SENSE_ALL_and_update(parameter='NONAV')  # Give all item's location
 
         if self.render_bool:
@@ -2055,6 +2060,8 @@ class GridworldMDP(NovelgridworldInterface):
         action = self.all_actions[action_id]
 
         # Need to map to action string?
+        # we should get the state of the inventory here, or the state of the world from which we need 
+        # to design a reward function. and then after executing the action we will compare and give reward.
         action_result, sense_all_result = self.execute_action(action)
         self.accumulated_step_cost += action_result['stepCost'] + sense_all_result['stepCost']
         self.last_step_cost = action_result['stepCost'] + sense_all_result['stepCost']
@@ -2074,14 +2081,21 @@ class GridworldMDP(NovelgridworldInterface):
                 'last_step_cost': self.last_step_cost}
 
         return info
+    def mdp_gridworld_reset(self, reset_from_failed_state = False, env_instance = None):
+    # def mdp_gridworld_reset(self, map_size = None, items_quantity=None, items_inventory_quantity = None):
+        # print("This is that should be called")
+        # print ("inside learnerUTIL \n items_quantity = {}\n  items_inventory_quantity = {}\n".format(items_quantity, items_inventory_quantity))
 
-    def reset(self, task=None):
         self.accumulated_step_cost = 0
-        a_command_result, sense_all_command_result = self.run_a_command_and_sense_all('RESET', sleep_time=5)
+        # if items_quantity is not None and items_inventory_quantity is not None and map_size is not None:
+        if reset_from_failed_state:                
+            a_command_result, sense_all_command_result = self.run_a_command_and_sense_all('RESET', reset_from_failed_state = reset_from_failed_state, env_instance = env_instance, sleep_time=5)
+        else:
+            a_command_result, sense_all_command_result = self.run_a_command_and_sense_all('RESET', sleep_time=5)
         self.accumulated_step_cost += a_command_result['stepCost'] + sense_all_command_result['stepCost']
         obs = self.observation()
-        return obs
 
+        return obs
 
     def observation(self):
         # this function computes the complete state representation and returns it

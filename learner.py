@@ -29,11 +29,11 @@ class Learner:
         #TODO: Also (or just) pass in failed effects with action using operator definitions,
         #      using hardcoded map for now
         operator_map = {
-            "approach crafting_table tree_log": ['near tree_log'],
-            "approach tree_tap crafting_table": ['near tree_log'],
-            "approach air tree_log": ['near tree_log'],
-            "approach air crafting_table": ['near tree_log'],
-            "approach minecraft:crafting_table": ['near crafting_table'],
+            "approach crafting_table tree_log": ['facing tree_log'],
+            "approach tree_tap crafting_table": ['facing tree_log'],
+            "approach air tree_log": ['facing tree_log'],
+            "approach air crafting_table": ['facing tree_log'],
+            "approach minecraft:crafting_table": ['facing crafting_table'],
             "Break tree_log": ['increase inventory_log 1'],
             "Craft_plank": ['increase inventory plank 1'],
             "Craft_stick": ['increase inventory stick 1'],
@@ -181,9 +181,10 @@ class Learner:
                              'novel_item': 6,
                              }
         relevant_outcome = 0
-
+        self.step_env
         while True:
             obs, rew, found_plannable, info = self.step_env(orig_obs=obs, info=info, done=done)
+            print ("obs = {} \n rew = {} \n found_plannable = {} \n info = {}".format(obs, rew, found_plannable, info))
 
             relevant_outcome = max(relevant_outcome, possible_outcomes[self.last_outcome])
 

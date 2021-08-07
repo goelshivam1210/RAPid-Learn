@@ -71,7 +71,7 @@ from gym_novel_gridworlds.wrappers import SaveTrajectories, LimitActions
 from gym_novel_gridworlds.observation_wrappers import LidarInFront, AgentMap
 from gym_novel_gridworlds.novelty_wrappers import inject_novelty
 from generate_pddl import *
-from learner import *
+from learner_v2 import *
 # from pddl_generator import *
 from operator_generalization import *
 
@@ -134,11 +134,12 @@ class Brain:
         # inject novelty
         
         env = self.instantiate_env(env_id) # make a new instance of the environment.
-        # env = self.inject_novelty()
+        env = self.inject_novelty()
         obs = env.reset() 
         self.generate_pddls(env)
+        self.domain_file_name = "domain"
         print ("Actions ID from the env = {} ".format(env.actions_id))
-        plan, game_action_set = self.call_planner("domain", "problem", env) # get a plan
+        plan, game_action_set = self.call_planner(self.domain_file_name, "problem", env) # get a plan
         print("game action set aftert the planner = {}".format(game_action_set))
         # time.sleep(10000)
 
@@ -152,11 +153,14 @@ class Brain:
             # Have to set failed action to operator string which has matching success effects, e.g.
                 # failed_action = "approach crafting_table tree_log"
                 # failed_action = "Break tree_log"
-            learned_policy = self.call_learner(failed_action=failed_action, env=env)
-            learned_operator =  self.call_operator_learner(failed_action, learned_policy)
+            self.domain_file_name = self.call_learner(failed_action=failed_action, env=env)
+            self.generate_pddls(env)
+            
+            # learned_operator =  self.call_operator_learner(failed_action, learned_policy)
             # This will update the PDDLs with the new operator for planning.
-            self.generate_pddls(env, learned_operator, update_flag = True)
-            plan, game_action_set = self.call_planner("domain", "problem", env) # get a plan
+            # self.generate_pddls(env, learned_operator, update_flag = True)
+
+            plan, game_action_set = self.call_planner(self.domain_file_name, "problem", env) # get a plan
 
         
         if result:
@@ -192,9 +196,11 @@ class Brain:
         #        learning a policy from
         if self.learner is None:
             self.learner = Learner(failed_action, env)
+            domain_file_name = self.learner.learn_state()
         else:
-            self.learner.learn_state()
-        return self.learner
+            # SG TODO: If the policy is already learned, no need to instantiate new Learner object. Will have to use this ``else``  
+            domain_file_name = self.learner.learn_state()
+        return domain_file_name
 
 
         # 
@@ -402,12 +408,10 @@ class Brain:
     def run_trials():
         pass
 
-    def generate_pddls(self, env, learned_operator = None, update_flag = False):
+    def generate_pddls(self, env):
         self.pddl_dir = "PDDL"
         os.makedirs(self.pddl_dir, exist_ok = True)
         generate_prob_pddl(self.pddl_dir, env)
-        if learned_operator is not None:
-            generate_domain_pddl(self.pddl_dir, env, learned_operator)
     '''
     This function generates the PDDLs from the current environment instance
     ### I/P environment object
