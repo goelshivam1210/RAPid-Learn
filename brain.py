@@ -435,7 +435,7 @@ class Brain:
         # env.render()
         rew_eps = 0
         count = 0
-        env.render()
+        # env.render()
         matching = [s for s in plan if "approach" in s]
         print ("matching = {}".format(matching))
         i = 0
@@ -443,7 +443,7 @@ class Brain:
         # for i in range (len(plan)):
             print("Executing plan_step: ", plan[i])
             # print ("Taking action {} = {}".format(i,list(env.actions_id.keys())[list(env.actions_id.values()).index(plan[i])]))
-            env.render()
+            # env.render()
             sub_plan = []
             # print ("plan[i] = {}".format(plan[i]))
             if "approach" in plan[i]:
@@ -460,7 +460,7 @@ class Brain:
                     print ("Info = {}".format(info))
                     if info['result']==False:
                         return False, plan[i]
-                    env.render()
+                    # env.render()
                     rew_eps += reward
                     count += 1
                     # time.sleep(1)

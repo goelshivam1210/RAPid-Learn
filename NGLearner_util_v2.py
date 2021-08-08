@@ -1710,7 +1710,7 @@ class NovelgridworldInterface:
 
         if command.startswith == 'RESET' or command == 'RESET':
             # print ("inside NG_learner_util_send_command \n items_quantity = {}\n  items_inventory_quantity = {}\n".format(items_quantity, items_inventory_quantity))
-            print ("self.env = {}".format(self.env))
+            # print ("self.env = {}".format(self.env))
             self.env.reset( reset_from_failed_state = reset_from_failed_state, env_instance = env_instance)
             return  {'command_result' : {'command': 'RESET',
                                         'argument': None,
