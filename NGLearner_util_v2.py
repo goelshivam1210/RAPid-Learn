@@ -15,8 +15,8 @@ default_param_dict = {
     'priority': 0,
     'learning_rate': 0.001,
     'prepopulate': 250,
-    'max_epsilon': 0.8,
-    'min_epsilon': 0.2,
+    'max_epsilon': 0.2,
+    'min_epsilon': 0.05,
     'eps_lambda': None,
     'batch_size': 32,
     'max_timesteps': 50000,
@@ -1912,9 +1912,9 @@ class GridworldMDP(NovelgridworldInterface):
             self.generate_obs_action_spaces()
             self.first_space_init = False
 
-        if render:
-            self.env.render()
-            self.env.render()
+        # if render:
+        #     # self.env.render()
+        #     # self.env.render()
 
     def set_items_id(self, items):
         if AIR_STR in items:

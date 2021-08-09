@@ -103,6 +103,7 @@ class Learner:
         self.Done = [] # storing goal completion per episode
 
         self.success_func = self.create_success_func(self.env.observation(),self.env.get_info()) # self.success_func returns a boolean indicating whether the desired effects were met
+        # if not self.success_func:
         self.found_plannable = self.run_episode()
 
         if self.found_plannable:
@@ -121,42 +122,35 @@ class Learner:
             'unplannable':1
         }
 
-        episode_timesteps = 0
+        # episode_timesteps = 0
         for episode in range(MAX_EPISODES):
+            # time.sleep(2)
             reward_per_episode = 0
+            episode_timesteps = 0
             # print("info = {}".format(info))
-
             # print ("Agent was holding {} when the agent failed".format(self.env_to_reset.selected_item))
             # print ("inside learner \n items_quantity = {}\n  items_inventory_quantity = {}\n".format(self.resettable_env_inventory_items_quantity, self.resettable_env_items_quantity))
             # time.sleep(5)
-            obs = self.env.mdp_gridworld_reset(reset_from_failed_state = True, env_instance = self.env_to_reset)
-            # Harcoded for now. Agents goal is hardcoded we need to make it automatic. It is just for testing purposes.
-            agent_current_inventory = self.env.get_info()['inv_quant_dict']
-            # print ("agent current inventory at the beginning of episode = {}".format(agent_current_inventory))
-            if 'tree_log' in agent_current_inventory.keys():
-                if agent_current_inventory['tree_log'] >= 1:
-                    self.success_func = True
-                else:
-                    pass
-            else:
-                self.success_func = False
-            # print ("The agent has selected {} when it starts the learning ".format(self.env.selected_item))
+            # reset the environment at the beginning of the episode.
+            # print ("self.env_to_reset inventory: {}".format(self.env_to_reset.inventory_items_quantity))
+            # if episode > 1 and self.Done[-1] == 1:
+            obs = self.env.mdp_gridworld_reset(reset_from_failed_state = True, env_instance = copy.deepcopy(self.env_to_reset))
             while True:
                 obs, action, done, info = self.step_env(orig_obs=obs, info=info, done=done)
                 # time.sleep(3)
                 episode_timesteps += 1
-                # SG: TODO: This is returning something wrong the plannable is always true..? We need to figure this out. 
-                # Yash can you do this?
-                # self.success_func = self.create_success_func(self.env.observation(),self.env.get_info()) # self.success_func returns a boolean indicating whether the desired effects were met
+                self.is_success_met = self.success_func(self.env.observation(),self.env.get_info()) # self.success_func returns a boolean indicating whether the desired effects were met
                 # print("info = {}".format(info))
-                agent_current_inventory = self.env.get_info()['inv_quant_dict']
-                # print ("agent current inventory = {}".format(agent_current_inventory))
-                if 'tree_log' in agent_current_inventory.keys():
-                    if agent_current_inventory['tree_log'] >= 1:
-                        self.success_func = True
-                if self.success_func:
+                # agent_current_inventory = self.env.get_info()['inv_quant_dict']
+                # # print ("agent current inventory = {}".format(agent_current_inventory))
+                # if 'tree_log' in agent_current_inventory.keys():
+                #     if agent_current_inventory['tree_log'] >= 1:
+                #         self.success_func = True
+                if self.is_success_met:    
                     done = True
                     rew = 1000
+                    # print ("Info inventory quant dict after achieving success  = {}".format(self.env.get_info()['inv_quant_dict']))
+                    # print ("In is success met: self.env_to_reset inventory: {}".format(self.env_to_reset.inventory_items_quantity))
                 else:
                     done = False
                     rew = -1
@@ -167,32 +161,34 @@ class Learner:
 
                 # print ("obs = {} \n rew = {} \n found_plannable = {} \n info = {}".format(obs, rew, done, info))
                 # self.R.append(rew)
-                reward_per_episode += rew
+                reward_per_episode += rew # save reward
                 if done:
+                    print ("EP >> {}, Timesteps >> {},  Rew >> {}, done = {}".format(episode, episode_timesteps, reward_per_episode, done))
+                    print("\n")
                     self.Done.append(1)
                     self.R.append(reward_per_episode)
-                    if np.mean(self.R[-70:]) > 800: # check the average reward for last 25 episodes
-                        # for future we can write an evaluation function here which runs a evaluation on the current policy.
-                        if  np.sum(self.Done[-25:]) > 23: # and check the success percentage of the agent > 80%.
-                            # call planner now.
-                            print ("The agent has learned to reach the subgoal")
-                            # plotting function. Just for testing purposes.
-                            plt.plot(self.R)
-                            plt.ylabel("Episodes")
-                            plt.xlabel("Reward per episode")
-                            plt.title("Learning to Break a Log with Axe: Performance")
-                            plt.grid(True)
-                            plt.legend()
-                            plt.show()
-                            return True  
+                    if episode > 70:
+                        if np.mean(self.R[-25:]) > 900: # check the average reward for last 70 episodes
+                            # for future we can write an evaluation function here which runs a evaluation on the current policy.
+                            if  np.sum(self.Done[-20:]) > 16: # and check the success percentage of the agent > 80%.
+                                # call planner now.
+                                print ("The agent has learned to reach the subgoal")
+                                # plotting function. Just for testing purposes.
+                                plt.plot(self.R)
+                                plt.xlabel("Episodes")
+                                plt.ylabel("Reward per episode")
+                                plt.title("Learning to Break a Log with Axe: Performance")
+                                plt.grid(True)
+                                plt.legend()
+                                plt.show()
+                                return True  
                     break
-                elif episode_timesteps < MAX_TIMESTEPS:
+                elif episode_timesteps >= MAX_TIMESTEPS:
+                    print ("EP >> {}, Timesteps >> {},  Rew >> {} done = {}".format(episode, episode_timesteps, reward_per_episode, done))
+                    print("\n")
                     self.Done.append(0)
                     self.R.append(reward_per_episode)
-            print ("EP >> {}  Rew >> {} done = {}".format(episode, reward_per_episode, done))
-
-            episode += 1
-
+                    break
         return False
 
     def step_env(self, action=None, orig_obs=None, info=None, done=False, store_transition=None, evaluate=False):
