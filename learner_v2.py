@@ -32,11 +32,11 @@ class Learner:
         if failed_action == "Break":
             failed_action = "Break tree_log"
         self.failed_action = failed_action
-        self.found_plannable = False
-        if not self.found_plannable:
+        self.learned_failed_action = False
+        if not self.learned_failed_action:
             self.mode = 'exploration' # we are exploring the novel environment to stitch the plan by learning the new failed action.
         else:
-            self.mode = 'learned' # Need to set the exploration coefficient to Zero, as we have already learned the policy
+            self.mode = 'exploitation' # Need to set the exploration coefficient to Zero, as we have already learned the policy
 
         operator_map = {
             "approach crafting_table tree_log": ['facing tree_log'],
@@ -75,10 +75,10 @@ class Learner:
     def reset_trial_vars(self):
         self.last_action = None
         self.last_obs = None
-        if not self.found_plannable:
+        if not self.learned_failed_action:
             self.mode = 'exploration'
         else:
-            self.mode = 'learned'
+            self.mode = 'exploitation'
         self.found_relevant_during_reset = False
         self.found_relevant_exp_state = 0
         self.last_reset_pos = None
@@ -92,7 +92,7 @@ class Learner:
         self.impermissible_reason = None
         self.trial_time = 300
 
-    def learn_state(self):
+    def learn_state(self, novelty_name):
         self.reset_trial_vars()
         self.env.run_SENSE_RECIPES_and_update()
         self.env.run_SENSE_ALL_and_update('NONAV')
@@ -104,12 +104,35 @@ class Learner:
 
         self.success_func = self.create_success_func(self.env.observation(),self.env.get_info()) # self.success_func returns a boolean indicating whether the desired effects were met
         # if not self.success_func:
-        self.found_plannable = self.run_episode()
+        self.learned_failed_action = self.run_episode()
 
-        if self.found_plannable:
-            # call the update planner to update the domain and PDDL to check
-            domain_file = self.update_planner()
-            return domain_file
+        if self.learned_failed_action:
+            self.learning_agent.save_model(novelty_name = 
+            novelty_name, operator_name=self.failed_action)
+            return True
+        else:
+            return False
+            
+    
+    def play_learned_policy(self, env, novelty_name, operator_name):
+        self.env = GridworldMDP(env, False) # reinstantiate a new env instance.
+        self.mode = 'exploitation' # want to act greedy
+        self.is_success_met = False        
+        done = False
+        obs = self.env.observation()
+        info = self.env.get_info()
+        self.learning_agent.load_model(novelty_name = novelty_name, operator_name = self.failed_action)
+        episode_timestep = 0
+        while True:
+            obs, action, done, info = self.step_env(orig_obs=obs, info=info, done=done)
+            self.is_success_met = self.success_func(self.env.observation(),self.env.get_info()) # self.success_func returns a boolean indicating whether the desired effects were met
+            episode_timestep += 1 
+            if self.is_success_met:
+                done = True
+                return True
+            if episode_timestep >= 150:
+                done = False
+                return False
 
     # Run episodes for certain time steps.
     def run_episode(self):
@@ -159,7 +182,7 @@ class Learner:
                 self.learning_agent.timesteps_trained += 1
                 self.learning_agent.check_update()
 
-                # print ("obs = {} \n rew = {} \n found_plannable = {} \n info = {}".format(obs, rew, done, info))
+                # print ("obs = {} \n rew = {} \n learned_failed_action = {} \n info = {}".format(obs, rew, done, info))
                 # self.R.append(rew)
                 reward_per_episode += rew # save reward
                 if done:
@@ -168,9 +191,9 @@ class Learner:
                     self.Done.append(1)
                     self.R.append(reward_per_episode)
                     if episode > 70:
-                        if np.mean(self.R[-25:]) > 900: # check the average reward for last 70 episodes
+                        if np.mean(self.R[-20:]) > 900: # check the average reward for last 70 episodes
                             # for future we can write an evaluation function here which runs a evaluation on the current policy.
-                            if  np.sum(self.Done[-20:]) > 16: # and check the success percentage of the agent > 80%.
+                            if  np.sum(self.Done[-20:]) > 17: # and check the success percentage of the agent > 80%.
                                 # call planner now.
                                 print ("The agent has learned to reach the subgoal")
                                 # plotting function. Just for testing purposes.
@@ -180,7 +203,7 @@ class Learner:
                                 plt.title("Learning to Break a Log with Axe: Performance")
                                 plt.grid(True)
                                 plt.legend()
-                                plt.show()
+                                # plt.show()
                                 return True  
                     break
                 elif episode_timesteps >= MAX_TIMESTEPS:
@@ -207,7 +230,7 @@ class Learner:
                 action = self.learning_agent.get_action(obs, info, None)
             else:
                 action = self.learning_agent.get_action(obs, info, 0)
-        else: 
+        else: # self.mode is exploitation -> greedy policy used
             action = self.learning_agent.get_action(obs, info, 0)
         
         ## Send action ##

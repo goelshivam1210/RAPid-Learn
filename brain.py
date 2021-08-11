@@ -25,8 +25,6 @@ Important References
 # instantiate a learner instance. callback here
 ##
 
-
-
 # call a rl learner which communicates with the planner agent to 
 # find a plannable state. A threshld can be setup here and a hyperparameter 
 #   can be learned from here. an agent can also solve two things at once
@@ -36,16 +34,10 @@ Important References
 # update the PDDL representation of the agent.
 
 # call the planner to plan and solve.
-# 
-
 ###
-
 # inseet at least 5 new environments.
-
 ### 
-
 # repeat the process above and add the functionality to control the number of iterations here.
-
 ##
 # make a new filoe called experiment.py which runs this script accordingly.
 
@@ -72,12 +64,8 @@ from gym_novel_gridworlds.observation_wrappers import LidarInFront, AgentMap
 from gym_novel_gridworlds.novelty_wrappers import inject_novelty
 from generate_pddl import *
 from learner_v2 import *
-# from pddl_generator import *
 from operator_generalization import *
 
-# import sys, string, os, arcgisscripting
-# os.system("C:/Documents and Settings/flow_model/flow.exe")
-# dictionary that maps the PDDL actions to the game engine permissable actions.
 action_map = {'moveforward':'Forward',
         'turnleft':'Left',
         'turnright':'Right',
@@ -90,121 +78,74 @@ action_map = {'moveforward':'Forward',
         'craftpogo_stick': 'Craft_pogo_stick',
         'select': 'Select'}
 
-# PDDL to NG item name map
-# item_map = {'tree_log': 'minecraft:log',
-#             'plank': 'minecraft:plank',
-#             'stick': 'minecraft:stick',
-#             'crafting_table': 'minecraft:crafting_table',
-#             'tree_tap': 'polycraft:tree_tap',
-#             'rubber': 'polycraft:sack_polyisoprene_pellets',
-#             'pogo_stick': 'polycraft:wooden_pogo_stick',
-#             'air': 'minecraft:air',
-#             'wall': 'minecraft:bedrock'}
-
 class Brain:
     
     def __init__(self):
         self.learner = None
-        # self.astar = AStarPlanner()
+        self.failed_action_set = {}
+        self.novelty_name = None
         pass
 
-    def init_brain(self):
-        pass
+    # def init_brain(self):
+    #     pass
 
 
-    def reset_brain(self):
-        pass
+    # def reset_brain(self):
+    #     pass
 
-    def run_brain(self, env_id=None):
+    def run_brain(self, env_id=None, novelty_name = None):
         '''        
             This is the driving function of this class.
             Call the environment and run the environment for x number of trials.
         '''
-
-        # env = gym.make('NovelGridworld-Pogostick-v1')
-        # done = False
-        # while not done:
-        #     env.render()
-        #     action = env.action_space.sample()
-        #     obs, reward, done, info = env.step(action)
-
-        # env.close()
-        # sys.exit(1)
         env_id = 'NovelGridworld-Pogostick-v1' # hardcoded for now. will add the argparser later.
-        # inject novelty
-        
         env = self.instantiate_env(env_id) # make a new instance of the environment.
-        env = self.inject_novelty()
+        # self.novelty_name = novelty_name # to be used in future.
+        self.novelty_name = 'axetobreak'
+        env = self.inject_novelty(novelty_name = self.novelty_name)
         obs = env.reset() 
         self.generate_pddls(env)
         self.domain_file_name = "domain"
-        print ("Actions ID from the env = {} ".format(env.actions_id))
+        # print ("Actions ID from the env = {} ".format(env.actions_id))
         plan, game_action_set = self.call_planner(self.domain_file_name, "problem", env) # get a plan
-        print("game action set aftert the planner = {}".format(game_action_set))
-        # time.sleep(10000)
-
+        # print("game action set aftert the planner = {}".format(game_action_set))
         result, failed_action = self.execute_plan(env, game_action_set, obs)
         print ("result = \n {}  \n Failed Action = \n {}".format(result, failed_action))
-        # import sys
-        # sys.exit(1)
         
-        if not result:
-            # EW: failed action currently returns None so this doesn't work
-            # Have to set failed action to operator string which has matching success effects, e.g.
-                # failed_action = "approach crafting_table tree_log"
-                # failed_action = "Break tree_log"
-            self.domain_file_name = self.call_learner(failed_action=failed_action, env=env)
-            self.generate_pddls(env)
+        if not result and failed_action is not None: # cases when the plan failed for the first time and the agent needs to learn a new action using RL
+            print ("Instantiating a RL Learner to learn a new action to solve the impasse.")
+            self.learned = self.call_learner(failed_action=failed_action, env=env)
             
-            # learned_operator =  self.call_operator_learner(failed_action, learned_policy)
-            # This will update the PDDLs with the new operator for planning.
-            # self.generate_pddls(env, learned_operator, update_flag = True)
-
-            plan, game_action_set = self.call_planner(self.domain_file_name, "problem", env) # get a plan
-
-        
+            if self.learned: # when the agent successfully learns a new action, it should now test it to re-run the environment.
+                print ("Agent succesfully learned a new action in the form of policy. Now resetting to test.")
+                self.run_brain()
+            
+        if not result and failed_action is None: # The agent used the learned policy and yet was unable to solve
+            print ("Failed to execute policy successfully. Now resetting for another trial.")
+            self.run_brain()
+ 
         if result:
             print("succesfully completed the task without any hassle!")
-        # if not result: # if the results in plan failure.
-            # call the learner with the failed operator
 
-            # call the policy_learner to convert the policy to an operator.
-        # TODO
-        # store the learned policy in two buffers. Replay buffer and the 
-        # buffer which stores the transferrable policies.
-
-
-
-
-        # run the planner's OP to the domain as the step
         pass
 
 
     def call_learner(self, failed_action, env=None):
         # This function instantiates a RL learner to start finding interesting states to send 
         # to the planner
-        #
 
         if env is None:
             env_id = 'NovelGridworld-Pogostick-v1'  # hardcoded for now. will add the argparser later.
             env = self.instantiate_env(env_id, None, False)  # make a new instance of the environment.
             obs = env.reset()
 
-        #TODO: If we want the learner to perform training on the failed action for N episodes,
-        #        then we would have to reset to the failed step between letting the RL agent take over.
-        #      Took out planning stuff so it wouldn't know how to reach a latter plan step to start
-        #        learning a policy from
         if self.learner is None:
             self.learner = Learner(failed_action, env)
-            domain_file_name = self.learner.learn_state()
+            learned = self.learner.learn_state(self.novelty_name) # learn to reach the goal state, if reached save the learned policy using novelty_name
+            return learned
         else:
-            # SG TODO: If the policy is already learned, no need to instantiate new Learner object. Will have to use this ``else``  
-            domain_file_name = self.learner.learn_state()
-        return domain_file_name
-
-
-        # 
-        pass
+            played = self.learner.play_learned_policy(env, novelty_name=self.novelty_name, operator_name=failed_action) # returns whether the policy was successfully played or not
+            return played
 
     def call_planner(self, domain, problem, env):
         '''
@@ -272,11 +213,7 @@ class Brain:
         '''
         env = gym.make(env_id)
         # env.render()
-        # print ("env.actions_id = {}".format(env.actions_id))
         env.unbreakable_items.add('crafting_table') # Make crafting table unbreakable for easy solving of task.
-        # env = LimitActions(env, {'Forward', 'Left', 'Right', 'Break', 'Craft_bow'}) # limit actions for easy training
-        # env = LidarInFront(env) # generate the observation space using LIDAR sensors
-        # print(env.unbreakable_items)
         env.reward_done = 1000
         env.reward_intermediate = 50
         if inject:
@@ -305,20 +242,14 @@ class Brain:
         resolution: grid resolution [m]
         rr: robot radius[m]
         """
-        # Sample goal from items_locs
-        # start position
-        # x,z,y
         sx = env.agent_location[1]
         sy = env.agent_location[0]
         so = env.agent_facing_str
         print ("agent is at {}, {} and facing {}".format(sy, sx, so))
-        # print (env.map)
         binary_map = copy.deepcopy(env.map)
         binary_map[binary_map > 0] = 1
-        # print ("binary map = {}".format(binary_map))
         grid_size = 1.0
         robot_radius = 0.9
-
         # obstacle positions
         ox, oy = [], []
         for r in range(len(binary_map[0])):
@@ -392,12 +323,11 @@ class Brain:
         ## rx and ry have all the x, y points to use and         
         # a_star = AStarPlanner(ox, oy, grid_size, robot_radius)
     
-    def inject_novelty(self):
+    def inject_novelty(self, novelty_name):
 
         env_id = 'NovelGridworld-Pogostick-v1'
         env = gym.make(env_id)
 
-        novelty_name = 'axetobreak'
         novelty_arg1 = 'wooden'
         novelty_arg2 = ''
         difficulty = 'easy'
@@ -417,22 +347,12 @@ class Brain:
     ### I/P environment object
     ### O/P returns pddl names if PDDL generated successfully, else returns false.
     '''
-
-    ### Yash's functions will be integrated here.
-
-
-
-
     def execute_plan(self, env, plan, obs):
         '''
         This function executes the plan on the domain step by step
         ### I/P: environment instance and sequence of actions step by step
         ### O/P: SUCCESS/ FAIL with the failed action
         '''
-        # print ("\n plan we get to execute = {}".format(plan))
-        # print ("\n env.actions_id = {}".format(env.actions_id))
-        # obs = env.reset()
-        # env.render()
         rew_eps = 0
         count = 0
         # env.render()
@@ -440,64 +360,51 @@ class Brain:
         print ("matching = {}".format(matching))
         i = 0
         while (i < len(plan)):
-        # for i in range (len(plan)):
             print("Executing plan_step: ", plan[i])
-            # print ("Taking action {} = {}".format(i,list(env.actions_id.keys())[list(env.actions_id.values()).index(plan[i])]))
-            # env.render()
             sub_plan = []
-            # print ("plan[i] = {}".format(plan[i]))
-            if "approach" in plan[i]:
+            if plan[i] in self.failed_action_set:#switch to rl
+                self.executed_learned_policy = self.call_learner(failed_action = plan[i], env = env)
+                if not self.executed_learned_policy:
+                    return False, None
+                else:
+                    i+=1
+            elif "approach" in plan[i] and plan[i] not in self.failed_action_set:
                 # call the motion planner here to generate the lower level actions
                 sub_plan = self.run_motion_planner(env, plan[i])
-                # print ("\n sub plan = {}".format(sub_plan))
-                # plan = np.delete(plan, i) # remove that item from the plan
                 i+=1
                 # now execute the sub-plan
                 for j in range (len(sub_plan)):
-                    # action_id = env.actions_id[sub_plan[j]]
-                    # print ("Executing {} action from sub plan in the environment".format(env.actions_id[sub_plan[j]]))
                     obs, reward, done, info = env.step(env.actions_id[sub_plan[j]])
                     print ("Info = {}".format(info))
                     if info['result']==False:
+                        self.failed_action_set[plan[i]] = None
                         return False, plan[i]
                     # env.render()
                     rew_eps += reward
                     count += 1
-                    # time.sleep(1)
-                    # if args['render']:
-                    # if i == 1:
                     if done:
                         if env.inventory_items_quantity[env.goal_item_to_craft] >= 1: # success measure(goal achieved)
-                            # count = step
-                            # break
                             return True, None
             # go back to the planner's normal plan
-            print ("Executing {} action from main plan in the environment".format(env.actions_id[plan[i]]))
-            obs, reward, done, info = env.step(env.actions_id[plan[i]])
-            # time.sleep(3)
-            print ("Info = {}".format(info))
-            if info['result']==False:
-                return False, plan[i]
-            rew_eps += reward
-            count += 1
-            # if args['render']:
-            # if i == 1:
-            if done:
-                if env.inventory_items_quantity[env.goal_item_to_craft] >= 1: # success measure(goal achieved)
-                    # count = step
-                    # break
-                    return True, None
-            # if info.equals('FAIL'):
-            #     return False, plan[i]
-            i+=1
+            else:
+                print ("Executing {} action from main plan in the environment".format(env.actions_id[plan[i]]))
+                obs, reward, done, info = env.step(env.actions_id[plan[i]])
+                print ("Info = {}".format(info))
+                if info['result']==False:
+                    self.failed_action_set[plan[i]] = None
+                    return False, plan[i]
+                rew_eps += reward
+                count += 1
+                if done:
+                    if env.inventory_items_quantity[env.goal_item_to_craft] >= 1: # success measure(goal achieved)
+                        return True, None
+                i+=1
         return False, None
 
     def evaluate_policy():
         pass
 if __name__ == '__main__':
     brain1 = Brain()
-    #testing RL connection
-    # learned_policy = brain1.call_learner(failed_action='break minecraft:log')
     brain1.run_brain()
 
 
