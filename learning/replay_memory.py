@@ -1,7 +1,7 @@
 import numpy as np
 import re
 
-from polycraft_tufts.rl_agent.dqn_lambda.learning.return_calculation import calculate_lambda_returns, calculate_nstep_returns
+from learning.return_calculation import calculate_lambda_returns, calculate_nstep_returns
 
 
 # Pengs-Median seems like best general approach if we cannot tune Lambda although takes longer
