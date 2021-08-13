@@ -14,11 +14,12 @@ import matplotlib.pyplot as plt
 # from NGLearner_util_v2 import PolycraftDynamicsChecker, get_create_success_func_from_predicate_set, default_param_dict, GridworldMDP, add_reset_probas, informed_random_action, check_permissible, update_reset_probas, reset_to_interesting_state
 from NGLearner_util_v2 import get_create_success_func_from_predicate_set, default_param_dict, GridworldMDP, add_reset_probas
 from learning.dqn import DQNLambda_Agent
-from polycraft_tufts.rl_agent.dqn_lambda.learning.utils import make_session
+# from polycraft_tufts.rl_agent.dqn_lambda.learning.utils import make_session
+from learning.utils import make_session
 from generate_pddl import *
 # Params
 # STEPCOST_PENALTY = 0.012
-MAX_TIMESTEPS = 100
+MAX_TIMESTEPS = 150
 MAX_EPISODES = 10000
 
 class Learner:
@@ -92,7 +93,7 @@ class Learner:
         self.impermissible_reason = None
         self.trial_time = 300
 
-    def learn_state(self, novelty_name):
+    def learn_policy(self, novelty_name, transfer=False):
         self.reset_trial_vars()
         self.env.run_SENSE_RECIPES_and_update()
         self.env.run_SENSE_ALL_and_update('NONAV')
@@ -102,9 +103,8 @@ class Learner:
         self.R = [] # storing rewards per episode
         self.Done = [] # storing goal completion per episode
 
-        self.success_func = self.create_success_func(self.env.observation(),self.env.get_info()) # self.success_func returns a boolean indicating whether the desired effects were met
         # if not self.success_func:
-        self.learned_failed_action = self.run_episode()
+        self.learned_failed_action = self.run_episode(transfer, novelty_name)
 
         if self.learned_failed_action:
             self.learning_agent.save_model(novelty_name = 
@@ -112,30 +112,9 @@ class Learner:
             return True
         else:
             return False
-            
-    
-    def play_learned_policy(self, env, novelty_name, operator_name):
-        self.env = GridworldMDP(env, False) # reinstantiate a new env instance.
-        self.mode = 'exploitation' # want to act greedy
-        self.is_success_met = False        
-        done = False
-        obs = self.env.observation()
-        info = self.env.get_info()
-        self.learning_agent.load_model(novelty_name = novelty_name, operator_name = self.failed_action)
-        episode_timestep = 0
-        while True:
-            obs, action, done, info = self.step_env(orig_obs=obs, info=info, done=done)
-            self.is_success_met = self.success_func(self.env.observation(),self.env.get_info()) # self.success_func returns a boolean indicating whether the desired effects were met
-            episode_timestep += 1 
-            if self.is_success_met:
-                done = True
-                return True
-            if episode_timestep >= 150:
-                done = False
-                return False
 
     # Run episodes for certain time steps.
-    def run_episode(self):
+    def run_episode(self, transfer= None, novelty_name = None):
         done = False
         obs = self.env.observation()
         info = self.env.get_info()
@@ -144,36 +123,25 @@ class Learner:
             'plannable':0,
             'unplannable':1
         }
+        # if transfer:
+        # self.learning_agent.load_model(novelty_name = novelty_name, operator_name = self.failed_action)
 
         # episode_timesteps = 0
         for episode in range(MAX_EPISODES):
             # time.sleep(2)
             reward_per_episode = 0
             episode_timesteps = 0
-            # print("info = {}".format(info))
-            # print ("Agent was holding {} when the agent failed".format(self.env_to_reset.selected_item))
-            # print ("inside learner \n items_quantity = {}\n  items_inventory_quantity = {}\n".format(self.resettable_env_inventory_items_quantity, self.resettable_env_items_quantity))
-            # time.sleep(5)
-            # reset the environment at the beginning of the episode.
-            # print ("self.env_to_reset inventory: {}".format(self.env_to_reset.inventory_items_quantity))
-            # if episode > 1 and self.Done[-1] == 1:
             obs = self.env.mdp_gridworld_reset(reset_from_failed_state = True, env_instance = copy.deepcopy(self.env_to_reset))
+            self.success_func = self.create_success_func(self.env.observation(),self.env.get_info()) # self.success_func returns a boolean indicating whether the desired effects were met
             while True:
                 obs, action, done, info = self.step_env(orig_obs=obs, info=info, done=done)
+
                 # time.sleep(3)
                 episode_timesteps += 1
                 self.is_success_met = self.success_func(self.env.observation(),self.env.get_info()) # self.success_func returns a boolean indicating whether the desired effects were met
-                # print("info = {}".format(info))
-                # agent_current_inventory = self.env.get_info()['inv_quant_dict']
-                # # print ("agent current inventory = {}".format(agent_current_inventory))
-                # if 'tree_log' in agent_current_inventory.keys():
-                #     if agent_current_inventory['tree_log'] >= 1:
-                #         self.success_func = True
                 if self.is_success_met:    
                     done = True
                     rew = 1000
-                    # print ("Info inventory quant dict after achieving success  = {}".format(self.env.get_info()['inv_quant_dict']))
-                    # print ("In is success met: self.env_to_reset inventory: {}".format(self.env_to_reset.inventory_items_quantity))
                 else:
                     done = False
                     rew = -1
@@ -182,11 +150,9 @@ class Learner:
                 self.learning_agent.timesteps_trained += 1
                 self.learning_agent.check_update()
 
-                # print ("obs = {} \n rew = {} \n learned_failed_action = {} \n info = {}".format(obs, rew, done, info))
-                # self.R.append(rew)
                 reward_per_episode += rew # save reward
                 if done:
-                    print ("EP >> {}, Timesteps >> {},  Rew >> {}, done = {}".format(episode, episode_timesteps, reward_per_episode, done))
+                    print ("EP >> {}, Timesteps >> {},  Rew >> {}, done = {}, done rate (20) = {}".format(episode, episode_timesteps, reward_per_episode, done, np.mean(self.Done[-20:])))
                     print("\n")
                     self.Done.append(1)
                     self.R.append(reward_per_episode)
@@ -194,8 +160,8 @@ class Learner:
                         if np.mean(self.R[-20:]) > 900: # check the average reward for last 70 episodes
                             # for future we can write an evaluation function here which runs a evaluation on the current policy.
                             if  np.sum(self.Done[-20:]) > 17: # and check the success percentage of the agent > 80%.
-                                # call planner now.
                                 print ("The agent has learned to reach the subgoal")
+
                                 # plotting function. Just for testing purposes.
                                 plt.plot(self.R)
                                 plt.xlabel("Episodes")
@@ -207,7 +173,7 @@ class Learner:
                                 return True  
                     break
                 elif episode_timesteps >= MAX_TIMESTEPS:
-                    print ("EP >> {}, Timesteps >> {},  Rew >> {} done = {}".format(episode, episode_timesteps, reward_per_episode, done))
+                    print ("EP >> {}, Timesteps >> {},  Rew >> {} done = {} done rate (20) = {}".format(episode, episode_timesteps, reward_per_episode, done, self.learning_agent.epsilon, np.mean(self.Done[-20:])))
                     print("\n")
                     self.Done.append(0)
                     self.R.append(reward_per_episode)
@@ -227,7 +193,7 @@ class Learner:
 
         if self.mode == 'exploration':
             if np.random.random() < self.learning_agent.epsilon:
-                action = self.learning_agent.get_action(obs, info, None)
+                action = self.learning_agent.get_action(obs, info, 0)
             else:
                 action = self.learning_agent.get_action(obs, info, 0)
         else: # self.mode is exploitation -> greedy policy used
@@ -241,6 +207,27 @@ class Learner:
 
         return obs2, action, done, info
 
+    def play_learned_policy(self, env, novelty_name, operator_name):
+        self.env = GridworldMDP(env, False, render=False) # reinstantiate a new env instance.
+        self.mode = 'exploitation' # want to act greedy
+        self.is_success_met = False        
+        done = False
+        obs = self.env.observation()
+        info = self.env.get_info()
+        self.learning_agent.load_model(novelty_name = novelty_name, operator_name = self.failed_action)
+        episode_timestep = 0
+        while True:
+
+            obs, action, done, info = self.step_env(orig_obs=obs, info=info, done=done)
+            self.is_success_met = self.success_func(self.env.observation(),self.env.get_info()) # self.success_func returns a boolean indicating whether the desired effects were met
+            episode_timestep += 1 
+            if self.is_success_met:
+                done = True
+                return True
+            if episode_timestep >= 225:
+                done = False
+                return False
+
     def update_planner(self):
         domain_file = None
         return domain_file
@@ -249,3 +236,4 @@ class Learner:
 if __name__ == '__main__':
     failed_action = None
     learn = Learner()
+    # learn.play_learned_policy()

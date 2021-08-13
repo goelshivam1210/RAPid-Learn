@@ -84,6 +84,8 @@ class Brain:
         self.learner = None
         self.failed_action_set = {}
         self.novelty_name = None
+        self.completed_trials = 0
+
         pass
 
     # def init_brain(self):
@@ -126,11 +128,12 @@ class Brain:
  
         if result:
             print("succesfully completed the task without any hassle!")
+            print("Needed to transfer: ", self.completed_trails)
 
         pass
 
 
-    def call_learner(self, failed_action, env=None):
+    def call_learner(self, failed_action, env=None, transfer = False):
         # This function instantiates a RL learner to start finding interesting states to send 
         # to the planner
 
@@ -141,11 +144,18 @@ class Brain:
 
         if self.learner is None:
             self.learner = Learner(failed_action, env)
-            learned = self.learner.learn_state(self.novelty_name) # learn to reach the goal state, if reached save the learned policy using novelty_name
+            learned = self.learner.learn_policy(self.novelty_name) # learn to reach the goal state, if reached save the learned policy using novelty_name
+            # learned = self.learner.play_learned_policy(env, novelty_name=self.novelty_name, operator_name=failed_action) # returns whether the policy was successfully played or not
             return learned
+
         else:
             played = self.learner.play_learned_policy(env, novelty_name=self.novelty_name, operator_name=failed_action) # returns whether the policy was successfully played or not
             return played
+            # if not played: # cases whrn the learned policy did not behave as intended
+            #     learned = self.learn_policy(failed_action, transfer = False) # learn to reach the goal state by transfering from the exisitng policy
+            # else:
+            #     self.completed_trials+=1
+            #     return played
 
     def call_planner(self, domain, problem, env):
         '''
@@ -374,6 +384,7 @@ class Brain:
                 i+=1
                 # now execute the sub-plan
                 for j in range (len(sub_plan)):
+                    env.render()
                     obs, reward, done, info = env.step(env.actions_id[sub_plan[j]])
                     print ("Info = {}".format(info))
                     if info['result']==False:
@@ -388,6 +399,7 @@ class Brain:
             # go back to the planner's normal plan
             else:
                 print ("Executing {} action from main plan in the environment".format(env.actions_id[plan[i]]))
+                env.render()
                 obs, reward, done, info = env.step(env.actions_id[plan[i]])
                 print ("Info = {}".format(info))
                 if info['result']==False:

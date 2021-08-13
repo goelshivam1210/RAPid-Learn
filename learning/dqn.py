@@ -5,11 +5,17 @@ import time
 import math
 import os
 
-from polycraft_tufts.rl_agent.dqn_lambda.learning.q_functions import pogostick_mlp
-from polycraft_tufts.rl_agent.dqn_lambda.learning.utils import *
-from polycraft_tufts.rl_agent.dqn_lambda.learning.replay_memory import make_replay_memory
+# from polycraft_tufts.rl_agent.dqn_lambda.learning.q_functions import pogostick_mlp
+# from polycraft_tufts.rl_agent.dqn_lambda.learning.utils import *
+# from polycraft_tufts.rl_agent.dqn_lambda.learning.replay_memory import make_replay_memory
 # from polycraft_tufts.rl_agent.dqn_lambda.envs.polycraft_mdp import MDP
-from polycraft_tufts.rl_agent.dqn_lambda.detectors import get_inv_quant
+# from polycraft_tufts.rl_agent.dqn_lambda.detectors import get_inv_quant
+
+from learning.q_functions import pogostick_mlp
+from learning.utils import *
+from learning.replay_memory import make_replay_memory
+# from polycraft_tufts.rl_agent.dqn_lambda.envs.polycraft_mdp import MDP
+# from polycraft_tufts.rl_agent.dqn_lambda.detectors import get_inv_quant
 from scipy.special import softmax
 
 tf.get_logger().setLevel('ERROR')
@@ -160,84 +166,6 @@ class DQNLambda_Agent(object):
     def set_explore_epsilon(self, e):
         self.epsilon = e
 
-    def run_episode(self, ep_t_limit, render=False, reset=True):
-        t = 0
-        reward_sum = 0
-        if reset:
-            obs = self.env.reset()
-            if render:
-                self.env.render()
-                self.env.render()
-        else:
-            obs = self.env.observation()
-            if render:
-                self.env.render()
-        success = True
-
-        while True:
-            self.replay_memory.store_obs(obs)
-            # with history_len == 1, just wraps obs in array
-            obs = self.replay_memory.encode_recent_observation()
-            print("WARNING: need to update epsilon externally, change to be internal")
-            action = self.epsilon_greedy(obs, self.epsilon)
-            obs, reward, done, info = self.env.step(action)
-            reward_sum += reward
-            t += 1
-            if t >= ep_t_limit:
-                done = True
-                success = False
-            self.replay_memory.store_effect(action, reward, done)
-            if render:
-                self.env.render()
-
-            if done:
-                self.timesteps_trained += t
-                self.eps_trained += 1
-                # Must prepopulate buffer to at least block_size
-                if self.timesteps_trained > self.prepopulate and self.eps_trained % self.target_update_freq == 0:
-                    train_frac = max(0, 0, (self.timesteps_trained / self.max_timesteps))
-                    self.replay_memory.refresh(train_frac)
-                    num_train_iterations = self.replay_memory.cache_size // self.batch_size
-                    for _ in range(num_train_iterations):
-                        self.train()
-                return reward_sum, success, t
-
-    def run_evaluate_episode(self, ep_t_limit, render=False, reset=True):
-        t = 0
-        reward_sum = 0
-        if reset:
-            obs = self.env.reset()
-            if render:
-                self.env.render()
-                self.env.render()
-        else:
-            obs = self.env.observation()
-            if render:
-                self.env.render()
-
-        # # Idea: keep track of history of length N of states and actions, if performing the same action in the
-        # #       same state within the history length, pick a random action instead
-        # # Could also restrict impossible actions (although notion of what's 'impossible' may change post novelty)
-        # # Or just keep some (but lower) amount of random_eps even in evaluate
-        # past_actions = -1*np.ones(2)
-        # past_states = np.zeros((2,len(obs)))
-        # past_states[0] = obs
-
-        success = True
-        while True:
-            action = self.epsilon_greedy(np.array([obs]), 0.0)
-            obs, reward, done, info = self.env.step(action)
-            if render:
-                self.env.render()
-            reward_sum += reward
-            t += 1
-            if t >= ep_t_limit:
-                done = True
-                success = False
-
-            if done:
-                return reward_sum, success, t
-
     def check_update(self):
         if self.timesteps_trained > self.prepopulate and self.timesteps_trained % self.target_update_freq == 0:
             if self.timesteps_trained - self.prepopulate <= self.target_update_freq:
@@ -281,3 +209,81 @@ class DQNLambda_Agent(object):
         # print ("model_dire v= {}".format(model_dir))
         self.saver.restore(self.session, tf.train.latest_checkpoint(model_dir))
 
+
+    # def run_episode(self, ep_t_limit, render=False, reset=True):
+    #     t = 0
+    #     reward_sum = 0
+    #     if reset:
+    #         obs = self.env.reset()
+    #         if render:
+    #             self.env.render()
+    #             self.env.render()
+    #     else:
+    #         obs = self.env.observation()
+    #         if render:
+    #             self.env.render()
+    #     success = True
+
+    #     while True:
+    #         self.replay_memory.store_obs(obs)
+    #         # with history_len == 1, just wraps obs in array
+    #         obs = self.replay_memory.encode_recent_observation()
+    #         print("WARNING: need to update epsilon externally, change to be internal")
+    #         action = self.epsilon_greedy(obs, self.epsilon)
+    #         obs, reward, done, info = self.env.step(action)
+    #         reward_sum += reward
+    #         t += 1
+    #         if t >= ep_t_limit:
+    #             done = True
+    #             success = False
+    #         self.replay_memory.store_effect(action, reward, done)
+    #         if render:
+    #             self.env.render()
+
+    #         if done:
+    #             self.timesteps_trained += t
+    #             self.eps_trained += 1
+    #             # Must prepopulate buffer to at least block_size
+    #             if self.timesteps_trained > self.prepopulate and self.eps_trained % self.target_update_freq == 0:
+    #                 train_frac = max(0, 0, (self.timesteps_trained / self.max_timesteps))
+    #                 self.replay_memory.refresh(train_frac)
+    #                 num_train_iterations = self.replay_memory.cache_size // self.batch_size
+    #                 for _ in range(num_train_iterations):
+    #                     self.train()
+    #             return reward_sum, success, t
+
+    # def run_evaluate_episode(self, ep_t_limit, render=False, reset=True):
+    #     t = 0
+    #     reward_sum = 0
+    #     if reset:
+    #         obs = self.env.reset()
+        #     if render:
+        #         self.env.render()
+        #         self.env.render()
+        # else:
+        #     obs = self.env.observation()
+        #     if render:
+        #         self.env.render()
+
+        # # Idea: keep track of history of length N of states and actions, if performing the same action in the
+        # #       same state within the history length, pick a random action instead
+        # # Could also restrict impossible actions (although notion of what's 'impossible' may change post novelty)
+        # # Or just keep some (but lower) amount of random_eps even in evaluate
+        # past_actions = -1*np.ones(2)
+        # past_states = np.zeros((2,len(obs)))
+        # past_states[0] = obs
+
+        # success = True
+        # while True:
+        #     action = self.epsilon_greedy(np.array([obs]), 0.0)
+        #     obs, reward, done, info = self.env.step(action)
+        #     if render:
+        #         self.env.render()
+        #     reward_sum += reward
+        #     t += 1
+        #     if t >= ep_t_limit:
+        #         done = True
+        #         success = False
+
+        #     if done:
+        #         return reward_sum, success, t

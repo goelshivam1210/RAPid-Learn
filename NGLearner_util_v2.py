@@ -1,6 +1,6 @@
 import numpy as np
 from collections import defaultdict
-
+import time
 #Util funcs used by learner copied from simulate_tournament.py
 #EW: TODO - clean file and make interface for funcs with default implementation that is domain independent
 #           (informed_random, check_permissble, reset_to_interesting,...)
@@ -9,19 +9,19 @@ default_param_dict = {
     'return_est_method': 'pengs-median',
     'replay_capacity': 10000,
     'history_len': 1,
-    'discount': 0.99,
+    'discount': 0.995,
     'cache_size': 5000,
     'block_size': 100,
     'priority': 0,
     'learning_rate': 0.001,
     'prepopulate': 250,
-    'max_epsilon': 0.2,
+    'max_epsilon': 0.1,
     'min_epsilon': 0.05,
     'eps_lambda': None,
-    'batch_size': 32,
-    'max_timesteps': 50000,
+    'batch_size': 64,
+    'max_timesteps': 100,
     # 'session': None,
-    'hidden_size': 32,
+    'hidden_size': 16,
     'update_freq': 50, #1,
 }
 
@@ -44,640 +44,640 @@ CRAFT_STR="CRAFT_"
 SELECT_STR="Select_"
 APPROACH_STR="approach"
 
-#EW: Not sure if want to use this, can remove
-#SG: Would like to remove it for future cases.
-def check_permissible(self, action, info):
-    action = self.env.all_actions[action]
+# #EW: Not sure if want to use this, can remove
+# #SG: Would like to remove it for future cases.
+# def check_permissible(self, action, info):
+#     action = self.env.all_actions[action]
 
-    # if self.last_action == PLACE_TAP_STR:
-    #     if info['block_in_front']['name'] == TAP_STR:
-    #         self.placed_tap = True
-    #         return action == EXTRACT_STR, 'placed_tap'
-    if self.last_action == EXTRACT_STR: #and self.placed_tap:
-        return action == BREAK_STR, 'extracted_rubber'
-    elif self.placed_tap and self.last_action == BREAK_STR:
-        return action == FORWARD_STR, 'broke_tap'
-    elif self.placed_tap and self.last_action == FORWARD_STR:
-        self.placed_tap = False
-        if action == PLACE_TAP_STR:
-            return False, 'placed_tap'
+#     # if self.last_action == PLACE_TAP_STR:
+#     #     if info['block_in_front']['name'] == TAP_STR:
+#     #         self.placed_tap = True
+#     #         return action == EXTRACT_STR, 'placed_tap'
+#     if self.last_action == EXTRACT_STR: #and self.placed_tap:
+#         return action == BREAK_STR, 'extracted_rubber'
+#     elif self.placed_tap and self.last_action == BREAK_STR:
+#         return action == FORWARD_STR, 'broke_tap'
+#     elif self.placed_tap and self.last_action == FORWARD_STR:
+#         self.placed_tap = False
+#         if action == PLACE_TAP_STR:
+#             return False, 'placed_tap'
 
-    if get_world_quant(info, LOG_STR) == 1 and get_inv_quant(info,RUBBER_STR) < 1 and get_entity_quant(info, RUBBER_STR) < 1 and action == BREAK_STR and info['block_in_front']['name'] == LOG_STR and 'break_last_tree' in self.impermissible_actions:
-        return False, 'break_last_tree'
-    elif action.startswith(CRAFT_STR):
-        if action[len(CRAFT_STR):] == STICK_STR and 'craft_unnecessary_stick' in self.impermissible_actions:
-            if get_inv_quant(info, TAP_STR) < 1 and get_world_quant(info,TAP_STR) < 1 and get_entity_quant(info, TAP_STR) < 1:
-                return get_inv_quant(info, STICK_STR) <= 1, 'craft_unnecessary_stick'
-            else:
-                return get_inv_quant(info, STICK_STR) <= 4, 'craft_unnecessary_stick'
+#     if get_world_quant(info, LOG_STR) == 1 and get_inv_quant(info,RUBBER_STR) < 1 and get_entity_quant(info, RUBBER_STR) < 1 and action == BREAK_STR and info['block_in_front']['name'] == LOG_STR and 'break_last_tree' in self.impermissible_actions:
+#         return False, 'break_last_tree'
+#     elif action.startswith(CRAFT_STR):
+#         if action[len(CRAFT_STR):] == STICK_STR and 'craft_unnecessary_stick' in self.impermissible_actions:
+#             if get_inv_quant(info, TAP_STR) < 1 and get_world_quant(info,TAP_STR) < 1 and get_entity_quant(info, TAP_STR) < 1:
+#                 return get_inv_quant(info, STICK_STR) <= 1, 'craft_unnecessary_stick'
+#             else:
+#                 return get_inv_quant(info, STICK_STR) <= 4, 'craft_unnecessary_stick'
 
-        elif action[len(CRAFT_STR):] == TAP_STR and 'craft_unnecessary_tap' in self.impermissible_actions:
-            return get_inv_quant(info, TAP_STR) + get_world_quant(info,TAP_STR) + get_entity_quant(info, TAP_STR) < 1, 'craft_unnecessary_tap'
+#         elif action[len(CRAFT_STR):] == TAP_STR and 'craft_unnecessary_tap' in self.impermissible_actions:
+#             return get_inv_quant(info, TAP_STR) + get_world_quant(info,TAP_STR) + get_entity_quant(info, TAP_STR) < 1, 'craft_unnecessary_tap'
 
-        elif action[len(CRAFT_STR)] != PLANK_STR and action[len(CRAFT_STR)] != POGO_STR:
-            if get_inv_quant(info, action[len(CRAFT_STR):]) > 0 or get_entity_quant(info,action[len(CRAFT_STR):]) > 0 or get_world_quant(info, action[len(CRAFT_STR):]) > 0:
-                return False, 'craft_new_recipe'
+#         elif action[len(CRAFT_STR)] != PLANK_STR and action[len(CRAFT_STR)] != POGO_STR:
+#             if get_inv_quant(info, action[len(CRAFT_STR):]) > 0 or get_entity_quant(info,action[len(CRAFT_STR):]) > 0 or get_world_quant(info, action[len(CRAFT_STR):]) > 0:
+#                 return False, 'craft_new_recipe'
 
-    return True, None
-
-
-# informed random action based on failed goal and last reset state
-#TODO: pass in agent to use class vars
-# SG: We are not calling this now.
-def informed_random_action(self, info):
-    # FutureTODO: reason about past successful trajectories
-    action_pool = []
-    action_values = []
-    if self.last_reset_pos is not None:
-        x, y = self.last_reset_pos
-    for action in range(self.learning_agent.n_actions):
-        action_str = self.env.all_actions[action]
-        if check_permissible(self, action, info)[0]:
-            # #Don't allow craft actions if we don't have the recipe's components (or not in front of crafting table)
-            if action_str.split('_')[0] == 'CRAFT':
-                item = action_str[6:]
-                recipe = self.env.ingredients_quantity_dict[item][0]
-                have_components = True
-                for component in recipe:
-                    if get_inv_quant(info, item) < recipe[component]:
-                        have_components = False
-                        break
-
-                if have_components:
-                    craft_table_needed = self.env.crafting_table_needed_dict[item][0]
-                    if craft_table_needed and info['block_in_front']['name'] != CT_STR:
-                        continue
-                    else:
-                        if item == PLANK_STR or item == STICK_STR:
-                            proba = 1
-                        # Would likely be able to plan to the goal at the point of the pogo_stick craft, so
-                        #  if we're even in this case we don't want to bias it too much because it's possible
-                        #  that it's no longer actually possible for whatever reason
-                        elif item == TAP_STR or item == POGO_STR:
-                            proba = 2
-                        # New item
-                        # Never permissible for now, forcing trade agent to craft recipe
-                        # Highly encourage crafting new items - but only once
-                        else:
-                            proba = 5
-                        action_pool.append(action)
-                        action_values.append(proba)
-
-            # Only allow select item if we have it in the inventory and don't have it currently selected
-            elif action_str.split('_')[0] == 'SELECT':
-                if get_inv_quant(info, action_str[len(SELECT_STR):]) >= 1 and info['selected_item'] != action_str[len(SELECT_STR):]:
-                    action_pool.append(action)
-                    # reset will handle selects for the most part so decrease probabilities
-                    action_values.append(0.25)
-
-            # assert block in front is not air
-            elif action_str == BREAK_STR:
-                if info['block_in_front']['name'] == AIR_STR or info['block_in_front'][
-                    'name'] == WALL_STR:
-                    action_values.append(0.1)
-                    action_pool.append(action)
-                else:
-                    # TODO: encourage more if block in front is goal item?
-                    action_values.append(2)
-                    action_pool.append(action)
-            # SG: Commented the portion out since we are not using place_tree_tap action now.
-            # elif action_str == PLACE_TAP_STR:
-            #     # Can't encourage this too much because we enforce extract_rubber to follow, which is extremely expensive
-            #     # TODO: would be really best to handle extractRubber failure separately -
-            #     #   keep count of what we have tried to tap and how many times
-            #     if get_inv_quant(info, TAP_STR) > 0 and info['block_in_front']['name'] == AIR_STR:
-            #         if self.failed_action == EXTRACT_STR:
-            #             # Allow experimenting with tapping different object if extractRubber fails
-            #             if self.env.check_for_further_validity(any=True):
-            #                 action_values.append(5.0)
-            #             # Possible tapping a tree after some condition, or from a different angle couldstill work
-            #             elif self.env.check_for_further_validity():
-            #                 action_values.append(0.5)
-            #             # Will tapping nothing ever be helpful?
-            #             else:
-            #                 action_values.append(0.05)
-            #             action_pool.append(action)
-            #         # Otherwise if we have a tap we would plan to extract rubber first and foremost
-            #         elif self.env.check_for_further_validity():
-            #             # action_values.append(5)
-            #             action_values.append(0.5)
-            #             action_pool.append(action)
-            #     continue
-            elif action_str == 'PLACE_CRAFTING_TABLE':
-                if get_inv_quant(info, CT_STR) >= 1 and info['block_in_front'][
-                    'name'] == AIR_STR:
-                    action_pool.append(action)
-                    action_values.append(1)
-            # assert block in front is tree tap
-            elif action_str == EXTRACT_STR:
-                if info['block_in_front']['name'] == TAP_STR:
-                    # EXTRACTRUBBER IS SUPER EXPENSIVE, don't encourage
-                    # only allow extractrubber if we're looking for a way to get rubber
-                    # Either on that step in exploration or learning
-                    if (self.mode == 'exploration' and self.failed_action == EXTRACT_STR) or \
-                            (self.mode == 'learning' and self.failed_action == EXTRACT_STR):
-                        action_pool.append(action)
-                        action_values.append(5)
-                        # SG: Removing this since we are not using place_tree_tap action anymore.
-                    # # believe this is necessary when we are forcing extract rubber and only the case then
-                    # elif self.placed_tap:
-                    #     action_pool.append(action)
-                    #     action_values.append(0.001)
-                # TODO: remove, should never be the case but want to ensure preventing crash
-                # elif self.placed_tap:
-                #     action_pool.append(action)
-                #     action_values.append(0.001)
-            else:
-                if action_str in [FORWARD_STR, LEFT_STR, RIGHT_STR]:
-                    continue
-                action_pool.append(action)
-                action_values.append(1)
+#     return True, None
 
 
-    if self.last_action == BREAK_STR:
-        action_pool.append(self.env.actions_id[FORWARD_STR])
-        action_values.append(1)
+# # informed random action based on failed goal and last reset state
+# #TODO: pass in agent to use class vars
+# # SG: We are not calling this now.
+# def informed_random_action(self, info):
+#     # FutureTODO: reason about past successful trajectories
+#     action_pool = []
+#     action_values = []
+#     if self.last_reset_pos is not None:
+#         x, y = self.last_reset_pos
+#     for action in range(self.learning_agent.n_actions):
+#         action_str = self.env.all_actions[action]
+#         if check_permissible(self, action, info)[0]:
+#             # #Don't allow craft actions if we don't have the recipe's components (or not in front of crafting table)
+#             if action_str.split('_')[0] == 'CRAFT':
+#                 item = action_str[6:]
+#                 recipe = self.env.ingredients_quantity_dict[item][0]
+#                 have_components = True
+#                 for component in recipe:
+#                     if get_inv_quant(info, item) < recipe[component]:
+#                         have_components = False
+#                         break
 
-    action_probas = action_values / np.sum(action_values)
-    out_action = np.random.choice(action_pool, p=action_probas)
-    return out_action
+#                 if have_components:
+#                     craft_table_needed = self.env.crafting_table_needed_dict[item][0]
+#                     if craft_table_needed and info['block_in_front']['name'] != CT_STR:
+#                         continue
+#                     else:
+#                         if item == PLANK_STR or item == STICK_STR:
+#                             proba = 1
+#                         # Would likely be able to plan to the goal at the point of the pogo_stick craft, so
+#                         #  if we're even in this case we don't want to bias it too much because it's possible
+#                         #  that it's no longer actually possible for whatever reason
+#                         elif item == TAP_STR or item == POGO_STR:
+#                             proba = 2
+#                         # New item
+#                         # Never permissible for now, forcing trade agent to craft recipe
+#                         # Highly encourage crafting new items - but only once
+#                         else:
+#                             proba = 5
+#                         action_pool.append(action)
+#                         action_values.append(proba)
+
+#             # Only allow select item if we have it in the inventory and don't have it currently selected
+#             elif action_str.split('_')[0] == 'SELECT':
+#                 if get_inv_quant(info, action_str[len(SELECT_STR):]) >= 1 and info['selected_item'] != action_str[len(SELECT_STR):]:
+#                     action_pool.append(action)
+#                     # reset will handle selects for the most part so decrease probabilities
+#                     action_values.append(0.25)
+
+#             # assert block in front is not air
+#             elif action_str == BREAK_STR:
+#                 if info['block_in_front']['name'] == AIR_STR or info['block_in_front'][
+#                     'name'] == WALL_STR:
+#                     action_values.append(0.1)
+#                     action_pool.append(action)
+#                 else:
+#                     # TODO: encourage more if block in front is goal item?
+#                     action_values.append(2)
+#                     action_pool.append(action)
+#             # SG: Commented the portion out since we are not using place_tree_tap action now.
+#             # elif action_str == PLACE_TAP_STR:
+#             #     # Can't encourage this too much because we enforce extract_rubber to follow, which is extremely expensive
+#             #     # TODO: would be really best to handle extractRubber failure separately -
+#             #     #   keep count of what we have tried to tap and how many times
+#             #     if get_inv_quant(info, TAP_STR) > 0 and info['block_in_front']['name'] == AIR_STR:
+#             #         if self.failed_action == EXTRACT_STR:
+#             #             # Allow experimenting with tapping different object if extractRubber fails
+#             #             if self.env.check_for_further_validity(any=True):
+#             #                 action_values.append(5.0)
+#             #             # Possible tapping a tree after some condition, or from a different angle couldstill work
+#             #             elif self.env.check_for_further_validity():
+#             #                 action_values.append(0.5)
+#             #             # Will tapping nothing ever be helpful?
+#             #             else:
+#             #                 action_values.append(0.05)
+#             #             action_pool.append(action)
+#             #         # Otherwise if we have a tap we would plan to extract rubber first and foremost
+#             #         elif self.env.check_for_further_validity():
+#             #             # action_values.append(5)
+#             #             action_values.append(0.5)
+#             #             action_pool.append(action)
+#             #     continue
+#             elif action_str == 'PLACE_CRAFTING_TABLE':
+#                 if get_inv_quant(info, CT_STR) >= 1 and info['block_in_front'][
+#                     'name'] == AIR_STR:
+#                     action_pool.append(action)
+#                     action_values.append(1)
+#             # assert block in front is tree tap
+#             elif action_str == EXTRACT_STR:
+#                 if info['block_in_front']['name'] == TAP_STR:
+#                     # EXTRACTRUBBER IS SUPER EXPENSIVE, don't encourage
+#                     # only allow extractrubber if we're looking for a way to get rubber
+#                     # Either on that step in exploration or learning
+#                     if (self.mode == 'exploration' and self.failed_action == EXTRACT_STR) or \
+#                             (self.mode == 'learning' and self.failed_action == EXTRACT_STR):
+#                         action_pool.append(action)
+#                         action_values.append(5)
+#                         # SG: Removing this since we are not using place_tree_tap action anymore.
+#                     # # believe this is necessary when we are forcing extract rubber and only the case then
+#                     # elif self.placed_tap:
+#                     #     action_pool.append(action)
+#                     #     action_values.append(0.001)
+#                 # TODO: remove, should never be the case but want to ensure preventing crash
+#                 # elif self.placed_tap:
+#                 #     action_pool.append(action)
+#                 #     action_values.append(0.001)
+#             else:
+#                 if action_str in [FORWARD_STR, LEFT_STR, RIGHT_STR]:
+#                     continue
+#                 action_pool.append(action)
+#                 action_values.append(1)
+
+
+#     if self.last_action == BREAK_STR:
+#         action_pool.append(self.env.actions_id[FORWARD_STR])
+#         action_values.append(1)
+
+#     action_probas = action_values / np.sum(action_values)
+#     out_action = np.random.choice(action_pool, p=action_probas)
+#     return out_action
 
 
 
 
-# Code to actually reset to the interesting state selected
-def reset_to_interesting_state(self, first_reset=False):
-    self.found_relevant_during_reset = False
-    self.resetting_state = True
-    print(Fore.LIGHTCYAN_EX + 'resetting to interesting state')
+# # Code to actually reset to the interesting state selected
+# def reset_to_interesting_state(self, first_reset=False):
+#     self.found_relevant_during_reset = False
+#     self.resetting_state = True
+#     print(Fore.LIGHTCYAN_EX + 'resetting to interesting state')
 
-    selected_item = None
-    item = None
+#     selected_item = None
+#     item = None
 
-    # Make sure movement dynamics have not been altered such that motion planning no longer works
-    if self.can_motion_plan:
-        # Get all valid possible targets
-        blocks_in_world = list(self.env.items_location.keys())
-        blockids_in_world = np.array([self.env.mdp_items_id[block] for block in blocks_in_world])
+#     # Make sure movement dynamics have not been altered such that motion planning no longer works
+#     if self.can_motion_plan:
+#         # Get all valid possible targets
+#         blocks_in_world = list(self.env.items_location.keys())
+#         blockids_in_world = np.array([self.env.mdp_items_id[block] for block in blocks_in_world])
 
-        entities_in_world = list(self.env.entities_location.keys())
-        entityids_in_world = np.array([self.env.mdp_items_id[entity] + self.env.num_types for entity in entities_in_world])
+#         entities_in_world = list(self.env.entities_location.keys())
+#         entityids_in_world = np.array([self.env.mdp_items_id[entity] + self.env.num_types for entity in entities_in_world])
 
-        all_ids_in_world = list(np.concatenate((blockids_in_world, entityids_in_world)).astype(int))
+#         all_ids_in_world = list(np.concatenate((blockids_in_world, entityids_in_world)).astype(int))
 
-        # Don't want to recreate astar agent every time if planning to a certain type fails
-        # Create AStar agent for current env config if not supplied
-        grid_size = 1.0
-        robot_radius = 0.9
+#         # Don't want to recreate astar agent every time if planning to a certain type fails
+#         # Create AStar agent for current env config if not supplied
+#         grid_size = 1.0
+#         robot_radius = 0.9
 
-        # obstacle positions
-        ox, oy = [], []
-        for r in range(len(self.env.binary_map[0])):
-            for c in range(len(self.env.binary_map[1])):
-                if self.env.binary_map[r][c] == 1:
-                    ox.append(c)
-                    oy.append(r)
-        a_star = AStarPlanner(ox, oy, grid_size, robot_radius)
+#         # obstacle positions
+#         ox, oy = [], []
+#         for r in range(len(self.env.binary_map[0])):
+#             for c in range(len(self.env.binary_map[1])):
+#                 if self.env.binary_map[r][c] == 1:
+#                     ox.append(c)
+#                     oy.append(r)
+#         a_star = AStarPlanner(ox, oy, grid_size, robot_radius)
 
-        # Take softmax and sample goal to move near - if fail to move near an object (blocked), try another
-        move_success = False
-        while len(all_ids_in_world) > 0 and not move_success:
-            move_near_values = self.reset_near_values[all_ids_in_world]
-            move_near_probas = move_near_values / sum(move_near_values)
+#         # Take softmax and sample goal to move near - if fail to move near an object (blocked), try another
+#         move_success = False
+#         while len(all_ids_in_world) > 0 and not move_success:
+#             move_near_values = self.reset_near_values[all_ids_in_world]
+#             move_near_probas = move_near_values / sum(move_near_values)
 
-            move_near_id = np.random.choice(all_ids_in_world, p=move_near_probas)
-            if move_near_id < self.env.num_types:
-                entity = False
-                item = self.env.all_items[move_near_id]
-            else:
-                entity = True
-                item = self.env.all_items[move_near_id - self.env.num_types]
+#             move_near_id = np.random.choice(all_ids_in_world, p=move_near_probas)
+#             if move_near_id < self.env.num_types:
+#                 entity = False
+#                 item = self.env.all_items[move_near_id]
+#             else:
+#                 entity = True
+#                 item = self.env.all_items[move_near_id - self.env.num_types]
 
-            plan_success, move_success, info = move_near(self, instance_type=item, entity=entity, a_star=a_star,
-                                                              nearest=first_reset)
+#             plan_success, move_success, info = move_near(self, instance_type=item, entity=entity, a_star=a_star,
+#                                                               nearest=first_reset)
 
-            #TODO: make sure this is updated such that only 'recovered' case interrupts execution
-            if self.found_relevant_during_reset:
-                self.resetting_state = False
-                return None, None
+#             #TODO: make sure this is updated such that only 'recovered' case interrupts execution
+#             if self.found_relevant_during_reset:
+#                 self.resetting_state = False
+#                 return None, None
 
-            if self.env.game_over:
-                print(Fore.YELLOW + "[reset_to_interesting_state] Env has indicated that the game is over, stopping execution and resetting to start next trial")
-                return None, None
+#             if self.env.game_over:
+#                 print(Fore.YELLOW + "[reset_to_interesting_state] Env has indicated that the game is over, stopping execution and resetting to start next trial")
+#                 return None, None
 
-            if not move_success:
-                if plan_success:
-                    if not self.failed_last_motion_plan:
-                        print(Fore.LIGHTYELLOW_EX + 'Failed motion planning execution, but could be due to items popping up mid execution or rare bug in motion planner -> allowing another attempt')
-                        self.failed_last_motion_plan = True
-                    else:
-                        print(Fore.YELLOW + 'Failed motion planning execution twice in a row, disabling')
-                        self.can_motion_plan = False
-                    move_near_id = None
-                    break
-                else:
-                    all_ids_in_world.remove(move_near_id)
-            else:
-                self.failed_last_motion_plan = False
+#             if not move_success:
+#                 if plan_success:
+#                     if not self.failed_last_motion_plan:
+#                         print(Fore.LIGHTYELLOW_EX + 'Failed motion planning execution, but could be due to items popping up mid execution or rare bug in motion planner -> allowing another attempt')
+#                         self.failed_last_motion_plan = True
+#                     else:
+#                         print(Fore.YELLOW + 'Failed motion planning execution twice in a row, disabling')
+#                         self.can_motion_plan = False
+#                     move_near_id = None
+#                     break
+#                 else:
+#                     all_ids_in_world.remove(move_near_id)
+#             else:
+#                 self.failed_last_motion_plan = False
 
-        # Modify target value based on response
-        if not move_success:
-            print(Fore.YELLOW + 'Couldnt moveTo any existing object type using A*, what happened? No blocks left in world? Surrounded by obstacles?')
-            move_near_id = None
-            self.last_reset_pos = None
-    else:
-        #TODO: make sure this count is still actually used
-        if self.found_relevant_exp_state < 5:
-            print(Fore.YELLOW + 'Cannot motion plan and we havent found many relevant state in exploration yet, sending sequence of MOVE commands to hopefully explore in a different location')
-            obs = self.env.observation()
-            info = self.env.get_info()
-            for _ in range(np.random.randint(10)):
-                obs, rew, done, info = self.step_env(self.env.actions_id[FORWARD_STR], obs, info)
-            obs, rew, done, info = self.step_env(self.env.actions_id[RIGHT_STR], obs, info)
-            for _ in range(np.random.randint(10)):
-                obs, rew, done, info = self.step_env(self.env.actions_id[FORWARD_STR], obs, info)
+#         # Modify target value based on response
+#         if not move_success:
+#             print(Fore.YELLOW + 'Couldnt moveTo any existing object type using A*, what happened? No blocks left in world? Surrounded by obstacles?')
+#             move_near_id = None
+#             self.last_reset_pos = None
+#     else:
+#         #TODO: make sure this count is still actually used
+#         if self.found_relevant_exp_state < 5:
+#             print(Fore.YELLOW + 'Cannot motion plan and we havent found many relevant state in exploration yet, sending sequence of MOVE commands to hopefully explore in a different location')
+#             obs = self.env.observation()
+#             info = self.env.get_info()
+#             for _ in range(np.random.randint(10)):
+#                 obs, rew, done, info = self.step_env(self.env.actions_id[FORWARD_STR], obs, info)
+#             obs, rew, done, info = self.step_env(self.env.actions_id[RIGHT_STR], obs, info)
+#             for _ in range(np.random.randint(10)):
+#                 obs, rew, done, info = self.step_env(self.env.actions_id[FORWARD_STR], obs, info)
 
-            if self.found_relevant_during_reset:
-                self.resetting_state = False
-                return None, None
+#             if self.found_relevant_during_reset:
+#                 self.resetting_state = False
+#                 return None, None
 
-        move_near_id = None
+#         move_near_id = None
 
-    # don't allow select if game over
-    if self.env.game_over:
-        return None, None
+#     # don't allow select if game over
+#     if self.env.game_over:
+#         return None, None
 
-    # Select item
-    items_in_inv = self.env.inventory_quantity_dict.keys()
-    if '' in items_in_inv:
-        items_in_inv.remove('')
-    if len(items_in_inv) > 0:
-        itemids_in_inv = np.array([self.env.mdp_items_id[item] for item in items_in_inv])
-        select_values = self.reset_select_values[itemids_in_inv]
-        select_probas = np.exp(select_values) / sum(np.exp(select_values))
-        select_id = np.random.choice(itemids_in_inv, p=select_probas)
-        selected_item = self.env.all_items[select_id]
-        select_item(self, selected_item)
-    else:
-        select_id = None
+#     # Select item
+#     items_in_inv = self.env.inventory_quantity_dict.keys()
+#     if '' in items_in_inv:
+#         items_in_inv.remove('')
+#     if len(items_in_inv) > 0:
+#         itemids_in_inv = np.array([self.env.mdp_items_id[item] for item in items_in_inv])
+#         select_values = self.reset_select_values[itemids_in_inv]
+#         select_probas = np.exp(select_values) / sum(np.exp(select_values))
+#         select_id = np.random.choice(itemids_in_inv, p=select_probas)
+#         selected_item = self.env.all_items[select_id]
+#         select_item(self, selected_item)
+#     else:
+#         select_id = None
 
-    self.resetting_state = False
-    print(Fore.LIGHTCYAN_EX + 'near {}, holding {}'.format(item, selected_item))
+#     self.resetting_state = False
+#     print(Fore.LIGHTCYAN_EX + 'near {}, holding {}'.format(item, selected_item))
 
-    return move_near_id, select_id
+#     return move_near_id, select_id
 
-# TODO: overhaul how this decision making is done - don't want to use whole big FA agent since
-#   the space should be much simpler, but could use a simpler RL agent which is slightly more
-#   informed to learn what to reset to based on res_cp and last reset.
-# Update reset probas after an episode of exploring or learning
-def update_reset_probas(self, move_near_id, select_id, relevant_outcome):
-    print('updating reset probas')
-    # set value cap for plannable state higher than beneficial state (will decrement values on others, so irrelevant)
-    value_cap = 50
+# # TODO: overhaul how this decision making is done - don't want to use whole big FA agent since
+# #   the space should be much simpler, but could use a simpler RL agent which is slightly more
+# #   informed to learn what to reset to based on res_cp and last reset.
+# # Update reset probas after an episode of exploring or learning
+# def update_reset_probas(self, move_near_id, select_id, relevant_outcome):
+#     print('updating reset probas')
+#     # set value cap for plannable state higher than beneficial state (will decrement values on others, so irrelevant)
+#     value_cap = 50
 
-    # Found nothing
-    if relevant_outcome == 0:
-        value_change = -1
-    # Found detrimental dynamics novelty
-    elif relevant_outcome == 1 or relevant_outcome == 6:
-        value_change = -5
-    # Found beneficial dynamics novelty
-    elif relevant_outcome == 2:
-        value_change = 2
-        value_cap = 15
-    # plannable or recovered or cp step
-    else:
-        value_change = 10
+#     # Found nothing
+#     if relevant_outcome == 0:
+#         value_change = -1
+#     # Found detrimental dynamics novelty
+#     elif relevant_outcome == 1 or relevant_outcome == 6:
+#         value_change = -5
+#     # Found beneficial dynamics novelty
+#     elif relevant_outcome == 2:
+#         value_change = 2
+#         value_cap = 15
+#     # plannable or recovered or cp step
+#     else:
+#         value_change = 10
 
-    if move_near_id is not None:
-        if self.reset_near_values[move_near_id] < value_cap:
-            self.reset_near_values[move_near_id] = max(1, min(value_cap,self.reset_near_values[move_near_id] + value_change))
-    if select_id is not None:
-        if self.reset_select_values[select_id] < value_cap:
-            self.reset_select_values[select_id] = max(1, min(value_cap,self.reset_select_values[select_id] + value_change))
+#     if move_near_id is not None:
+#         if self.reset_near_values[move_near_id] < value_cap:
+#             self.reset_near_values[move_near_id] = max(1, min(value_cap,self.reset_near_values[move_near_id] + value_change))
+#     if select_id is not None:
+#         if self.reset_select_values[select_id] < value_cap:
+#             self.reset_select_values[select_id] = max(1, min(value_cap,self.reset_select_values[select_id] + value_change))
 
-def select_item(self, item_to_select=None):
-    # Randomly chose object to select (exploration)
-    if item_to_select is None:
-        interesting_items = self.env.novel_items.copy()
+# def select_item(self, item_to_select=None):
+#     # Randomly chose object to select (exploration)
+#     if item_to_select is None:
+#         interesting_items = self.env.novel_items.copy()
 
-        # First try selecting novel item
-        while len(interesting_items) > 0:
-            interesting_item = interesting_items[np.random.randint(len(interesting_items))]
-            if interesting_item in self.env.inventory_quantity_dict:
-                self.step_env(self.env.actions_id['SELECT_{}'.format(interesting_item)],store_transition=False)
-                return interesting_item
-            else:
-                del interesting_item_locations[ind]
+#         # First try selecting novel item
+#         while len(interesting_items) > 0:
+#             interesting_item = interesting_items[np.random.randint(len(interesting_items))]
+#             if interesting_item in self.env.inventory_quantity_dict:
+#                 self.step_env(self.env.actions_id['SELECT_{}'.format(interesting_item)],store_transition=False)
+#                 return interesting_item
+#             else:
+#                 del interesting_item_locations[ind]
 
-        # Select random item otherwise
-        if len(self.env.inventory_quantity_dict) > 0:
-            item = np.random.choice(list(self.env.inventory_quantity_dict.keys()))
-            self.step_env(self.env.actions_id['SELECT_{}'.format(item)], store_transition=False)
-            return item
-        # Can't select anything, don't have anything
-        else:
-            return None
-    # Choose specific item to select (learning)
-    else:
-        if item_to_select in self.env.inventory_quantity_dict:
-            self.step_env(self.env.actions_id['SELECT_{}'.format(item_to_select)], store_transition=False)
-            return item_to_select
-        else:
-            print(
-                Fore.YELLOW + 'Cannot reset to start state holding object {}, it is no longer present in the inventory'.format(
-                    item_to_select))
-            return None
+#         # Select random item otherwise
+#         if len(self.env.inventory_quantity_dict) > 0:
+#             item = np.random.choice(list(self.env.inventory_quantity_dict.keys()))
+#             self.step_env(self.env.actions_id['SELECT_{}'.format(item)], store_transition=False)
+#             return item
+#         # Can't select anything, don't have anything
+#         else:
+#             return None
+#     # Choose specific item to select (learning)
+#     else:
+#         if item_to_select in self.env.inventory_quantity_dict:
+#             self.step_env(self.env.actions_id['SELECT_{}'.format(item_to_select)], store_transition=False)
+#             return item_to_select
+#         else:
+#             print(
+#                 Fore.YELLOW + 'Cannot reset to start state holding object {}, it is no longer present in the inventory'.format(
+#                     item_to_select))
+#             return None
 
-#Given instance_type, entity, a_star, and nearest
-def move_near(self, instance_type=None, entity=False, goal_pose=None, relcoord=None, a_star=None, nearest=True):
-    # Always plan from agent's current location
-    sx = self.env.player['pos'][0]
-    sy = self.env.player['pos'][2]
+# #Given instance_type, entity, a_star, and nearest
+# def move_near(self, instance_type=None, entity=False, goal_pose=None, relcoord=None, a_star=None, nearest=True):
+#     # Always plan from agent's current location
+#     sx = self.env.player['pos'][0]
+#     sy = self.env.player['pos'][2]
 
-    # Create AStar agent for current env config if not supplied
-    if a_star is None:
-        grid_size = 1.0
-        robot_radius = 0.9
+#     # Create AStar agent for current env config if not supplied
+#     if a_star is None:
+#         grid_size = 1.0
+#         robot_radius = 0.9
 
-        # obstacle positions
-        ox, oy = [], []
-        for r in range(len(self.env.binary_map[0])):
-            for c in range(len(self.env.binary_map[1])):
-                if self.env.binary_map[r][c] == 1:
-                    ox.append(c)
-                    oy.append(r)
-        a_star = AStarPlanner(ox, oy, grid_size, robot_radius)
+#         # obstacle positions
+#         ox, oy = [], []
+#         for r in range(len(self.env.binary_map[0])):
+#             for c in range(len(self.env.binary_map[1])):
+#                 if self.env.binary_map[r][c] == 1:
+#                     ox.append(c)
+#                     oy.append(r)
+#         a_star = AStarPlanner(ox, oy, grid_size, robot_radius)
 
-    # TODO: believe this is the only conditional actually used atm
-    # Otherwise go to specific type of object if supplied
-    elif instance_type is not None:
-        if entity:
-            if nearest:
-                plan_success, move_success, info = plan_and_go_to_nearest(self, [instance_type],
-                                                                               self.env.entities_location,
-                                                                               a_star, sx, sy)
-            else:
-                plan_success, move_success, info = plan_and_go_to_random(self, [instance_type],
-                                                                              self.env.entities_location,
-                                                                              a_star, sx, sy)
-        else:
-            if nearest:
-                plan_success, move_success, info = plan_and_go_to_nearest(self, [instance_type],
-                                                                               self.env.items_location,
-                                                                               a_star, sx, sy)
-            else:
-                plan_success, move_success, info = plan_and_go_to_random(self, [instance_type],
-                                                                              self.env.items_location,
-                                                                              a_star, sx, sy)
-        info['entity'] = entity
-        info['moveType'] = 'instanceType'
-        return plan_success, move_success, info
+#     # TODO: believe this is the only conditional actually used atm
+#     # Otherwise go to specific type of object if supplied
+#     elif instance_type is not None:
+#         if entity:
+#             if nearest:
+#                 plan_success, move_success, info = plan_and_go_to_nearest(self, [instance_type],
+#                                                                                self.env.entities_location,
+#                                                                                a_star, sx, sy)
+#             else:
+#                 plan_success, move_success, info = plan_and_go_to_random(self, [instance_type],
+#                                                                               self.env.entities_location,
+#                                                                               a_star, sx, sy)
+#         else:
+#             if nearest:
+#                 plan_success, move_success, info = plan_and_go_to_nearest(self, [instance_type],
+#                                                                                self.env.items_location,
+#                                                                                a_star, sx, sy)
+#             else:
+#                 plan_success, move_success, info = plan_and_go_to_random(self, [instance_type],
+#                                                                               self.env.items_location,
+#                                                                               a_star, sx, sy)
+#         info['entity'] = entity
+#         info['moveType'] = 'instanceType'
+#         return plan_success, move_success, info
 
-def plan_and_go_to_nearest(self, interesting_items, items_location, a_star, sx, sy):
-    # Then sample interesting blocks and go to them
-    while len(interesting_items) != 0:
-        # randomly sample item key of set to navigate towards (should mostly be len 1)
-        item_ind = np.random.randint(len(interesting_items))
-        interesting_item = interesting_items[item_ind]
-        try:
-            interesting_item_locations = items_location[interesting_item].copy()
-        except:
-            del interesting_items[item_ind]
-            continue
+# def plan_and_go_to_nearest(self, interesting_items, items_location, a_star, sx, sy):
+#     # Then sample interesting blocks and go to them
+#     while len(interesting_items) != 0:
+#         # randomly sample item key of set to navigate towards (should mostly be len 1)
+#         item_ind = np.random.randint(len(interesting_items))
+#         interesting_item = interesting_items[item_ind]
+#         try:
+#             interesting_item_locations = items_location[interesting_item].copy()
+#         except:
+#             del interesting_items[item_ind]
+#             continue
 
-        # If few enough items, just iterate through and order all in terms of distance
-        if len(interesting_item_locations) <= 10:
-            interesting_item_dists = []
-            for i in range(len(interesting_item_locations)):
-                interesting_instance = interesting_item_locations[i]
-                locs = interesting_instance.split(',')
-                dist = (sx - int(locs[0])) ** 2 + (sy - int(locs[2])) ** 2
-                interesting_item_dists.append(dist)
-            while len(interesting_item_locations) != 0:
-                # randomly sample instance of item key to navigate towards
-                # ind = np.random.randint(len(interesting_item_locations))
-                # take nearest remaining instance
-                ind = np.argmin(interesting_item_dists)
-                interesting_instance = interesting_item_locations[ind]
-                locs = interesting_instance.split(',')
-                gx = int(locs[0])
-                gy = int(locs[2])
-                # Can't actually go into the item, so randomly sample point next to it to go to
-                relcoord = np.random.randint(4)
-                rx, ry = [], []
+#         # If few enough items, just iterate through and order all in terms of distance
+#         if len(interesting_item_locations) <= 10:
+#             interesting_item_dists = []
+#             for i in range(len(interesting_item_locations)):
+#                 interesting_instance = interesting_item_locations[i]
+#                 locs = interesting_instance.split(',')
+#                 dist = (sx - int(locs[0])) ** 2 + (sy - int(locs[2])) ** 2
+#                 interesting_item_dists.append(dist)
+#             while len(interesting_item_locations) != 0:
+#                 # randomly sample instance of item key to navigate towards
+#                 # ind = np.random.randint(len(interesting_item_locations))
+#                 # take nearest remaining instance
+#                 ind = np.argmin(interesting_item_dists)
+#                 interesting_instance = interesting_item_locations[ind]
+#                 locs = interesting_instance.split(',')
+#                 gx = int(locs[0])
+#                 gy = int(locs[2])
+#                 # Can't actually go into the item, so randomly sample point next to it to go to
+#                 relcoord = np.random.randint(4)
+#                 rx, ry = [], []
 
-                if (self.resetting_state and self.failed_action.startswith(APPROACH_STR) and self.failed_action.split()[-1] == interesting_item):
-                    dists = [1, 2, 3]
-                else:
-                    dists = [1]
-                for dist in dists:
-                    num_attempts = 0
-                    # otherwise object is unreachable
-                    while len(rx) < 2 and num_attempts < 4:
-                        if relcoord == 0:
-                            relx, rely = 1 * dist, 0
-                            ro = 'WEST'
-                        elif relcoord == 1:
-                            relx, rely = -1 * dist, 0
-                            ro = 'EAST'
-                        elif relcoord == 2:
-                            relx, rely = 0, 1 * dist
-                            ro = 'NORTH'
-                        elif relcoord == 3:
-                            relx, rely = 0, -1 * dist
-                            ro = 'SOUTH'
-                        rx, ry = a_star.planning(sx, sy, gx + relx, gy + rely)
-                        relcoord = (relcoord + 1) % 4
-                        num_attempts += 1
-                    if len(rx) > 1:
-                        break
+#                 if (self.resetting_state and self.failed_action.startswith(APPROACH_STR) and self.failed_action.split()[-1] == interesting_item):
+#                     dists = [1, 2, 3]
+#                 else:
+#                     dists = [1]
+#                 for dist in dists:
+#                     num_attempts = 0
+#                     # otherwise object is unreachable
+#                     while len(rx) < 2 and num_attempts < 4:
+#                         if relcoord == 0:
+#                             relx, rely = 1 * dist, 0
+#                             ro = 'WEST'
+#                         elif relcoord == 1:
+#                             relx, rely = -1 * dist, 0
+#                             ro = 'EAST'
+#                         elif relcoord == 2:
+#                             relx, rely = 0, 1 * dist
+#                             ro = 'NORTH'
+#                         elif relcoord == 3:
+#                             relx, rely = 0, -1 * dist
+#                             ro = 'SOUTH'
+#                         rx, ry = a_star.planning(sx, sy, gx + relx, gy + rely)
+#                         relcoord = (relcoord + 1) % 4
+#                         num_attempts += 1
+#                     if len(rx) > 1:
+#                         break
 
-                # Found plan
-                if len(rx) > 1:
-                    self.last_reset_pos = (gx, gy)
-                    moveToUsingPlan(self, sx, sy, rx, ry, ro)
-                    move_success = (int(rx[0]) == self.env.player['pos'][0]) and (
-                            int(ry[0]) == self.env.player['pos'][2])
-                    info = {'instance_type': interesting_item,
-                            'relcoords': (relx, rely),
-                            'orientation': ro,
-                            'end_pos': (rx[0], ry[0])
-                            }
-                    # Couldn't move next to but moved near
-                    if dist > 1:
-                        return False, move_success, info
-                    else:
-                        return True, move_success, info
-                # Unreachable, delete location and keep trying
-                else:
-                    del interesting_item_locations[ind]
-                    del interesting_item_dists[ind]
+#                 # Found plan
+#                 if len(rx) > 1:
+#                     self.last_reset_pos = (gx, gy)
+#                     moveToUsingPlan(self, sx, sy, rx, ry, ro)
+#                     move_success = (int(rx[0]) == self.env.player['pos'][0]) and (
+#                             int(ry[0]) == self.env.player['pos'][2])
+#                     info = {'instance_type': interesting_item,
+#                             'relcoords': (relx, rely),
+#                             'orientation': ro,
+#                             'end_pos': (rx[0], ry[0])
+#                             }
+#                     # Couldn't move next to but moved near
+#                     if dist > 1:
+#                         return False, move_success, info
+#                     else:
+#                         return True, move_success, info
+#                 # Unreachable, delete location and keep trying
+#                 else:
+#                     del interesting_item_locations[ind]
+#                     del interesting_item_dists[ind]
 
-            interesting_items.remove(interesting_item)
+#             interesting_items.remove(interesting_item)
 
-        # #otherwise search out from agent and try one by one (don't want to get stuck on case where they spawn
-        # # a bunch of instances
-        else:
-            print("TODO: implement spiral search for nearest goal instance, too many instances, picking random")
-            success, move_success, info = plan_and_go_to_random(self, [interesting_item], items_location, a_star, sx,
-                                                                     sy)
-            if success:
-                return success, move_success, info
-            interesting_items.remove(interesting_item)
-    # Did not find plan for any object
-    info = {'instance_types': interesting_items,
-            # 'relcoords': (relx,rely),
-            # 'orientation': ro
-            }
-    return False, False, info
+#         # #otherwise search out from agent and try one by one (don't want to get stuck on case where they spawn
+#         # # a bunch of instances
+#         else:
+#             print("TODO: implement spiral search for nearest goal instance, too many instances, picking random")
+#             success, move_success, info = plan_and_go_to_random(self, [interesting_item], items_location, a_star, sx,
+#                                                                      sy)
+#             if success:
+#                 return success, move_success, info
+#             interesting_items.remove(interesting_item)
+#     # Did not find plan for any object
+#     info = {'instance_types': interesting_items,
+#             # 'relcoords': (relx,rely),
+#             # 'orientation': ro
+#             }
+#     return False, False, info
 
-# Goes to random instance of random item in interesting_items list (if possible)
-def plan_and_go_to_random(self, interesting_items, items_location, a_star, sx, sy):
-    while len(interesting_items) != 0:
-        # randomly sample item key to navigate towards
-        item_ind = np.random.randint(len(interesting_items))
-        interesting_item = interesting_items[item_ind]
-        try:
-            interesting_item_locations = items_location[interesting_item].copy()
-        except:
-            del interesting_items[item_ind]
-            continue
+# # Goes to random instance of random item in interesting_items list (if possible)
+# def plan_and_go_to_random(self, interesting_items, items_location, a_star, sx, sy):
+#     while len(interesting_items) != 0:
+#         # randomly sample item key to navigate towards
+#         item_ind = np.random.randint(len(interesting_items))
+#         interesting_item = interesting_items[item_ind]
+#         try:
+#             interesting_item_locations = items_location[interesting_item].copy()
+#         except:
+#             del interesting_items[item_ind]
+#             continue
 
-        # randomly sample instance of item key to navigate towards
-        while len(interesting_item_locations) != 0:
-            ind = np.random.randint(len(interesting_item_locations))
-            interesting_instance = interesting_item_locations[ind]
-            locs = interesting_instance.split(',')
-            gx = int(locs[0])
-            gy = int(locs[2])
-            # Can't actually go into the item, so randomly sample point next to it to go to
-            # Check if relcoord to item is vacant or reachable, otherwise we're wasting an opportunity
-            relcoord = np.random.randint(4)
-            # start with sampled relcoord, then try iterating over other possibilities
-            rx, ry = [], []
+#         # randomly sample instance of item key to navigate towards
+#         while len(interesting_item_locations) != 0:
+#             ind = np.random.randint(len(interesting_item_locations))
+#             interesting_instance = interesting_item_locations[ind]
+#             locs = interesting_instance.split(',')
+#             gx = int(locs[0])
+#             gy = int(locs[2])
+#             # Can't actually go into the item, so randomly sample point next to it to go to
+#             # Check if relcoord to item is vacant or reachable, otherwise we're wasting an opportunity
+#             relcoord = np.random.randint(4)
+#             # start with sampled relcoord, then try iterating over other possibilities
+#             rx, ry = [], []
 
-            # FutureTODO: clean up this check
-            if (self.resetting_state and self.failed_action.split()[0] == APPROACH_STR and self.failed_action.split()[-1] == interesting_item):
-                dists = [1, 2, 3]
-            else:
-                dists = [1]
-            for dist in dists:
-                num_attempts = 0
-                # otherwise object is unreachable
-                while len(rx) < 2 and num_attempts < 4:
-                    if relcoord == 0:
-                        relx, rely = 1 * dist, 0
-                        ro = 'WEST'
-                    elif relcoord == 1:
-                        relx, rely = -1 * dist, 0
-                        ro = 'EAST'
-                    elif relcoord == 2:
-                        relx, rely = 0, 1 * dist
-                        ro = 'NORTH'
-                    elif relcoord == 3:
-                        relx, rely = 0, -1 * dist
-                        ro = 'SOUTH'
-                    rx, ry = a_star.planning(sx, sy, gx + relx, gy + rely)
-                    relcoord = (relcoord + 1) % 4
-                    num_attempts += 1
-                if len(rx) > 1:
-                    break
+#             # FutureTODO: clean up this check
+#             if (self.resetting_state and self.failed_action.split()[0] == APPROACH_STR and self.failed_action.split()[-1] == interesting_item):
+#                 dists = [1, 2, 3]
+#             else:
+#                 dists = [1]
+#             for dist in dists:
+#                 num_attempts = 0
+#                 # otherwise object is unreachable
+#                 while len(rx) < 2 and num_attempts < 4:
+#                     if relcoord == 0:
+#                         relx, rely = 1 * dist, 0
+#                         ro = 'WEST'
+#                     elif relcoord == 1:
+#                         relx, rely = -1 * dist, 0
+#                         ro = 'EAST'
+#                     elif relcoord == 2:
+#                         relx, rely = 0, 1 * dist
+#                         ro = 'NORTH'
+#                     elif relcoord == 3:
+#                         relx, rely = 0, -1 * dist
+#                         ro = 'SOUTH'
+#                     rx, ry = a_star.planning(sx, sy, gx + relx, gy + rely)
+#                     relcoord = (relcoord + 1) % 4
+#                     num_attempts += 1
+#                 if len(rx) > 1:
+#                     break
 
-            # Found plan
-            if len(rx) > 1:
-                self.last_reset_pos = (gx, gy)
-                moveToUsingPlan(self, sx, sy, rx, ry, ro)
-                move_success = (int(rx[0]) == self.env.player['pos'][0]) and (
-                            int(ry[0]) == self.env.player['pos'][2])
-                info = {'instance_type': interesting_item,
-                        'relcoords': (relx, rely),
-                        'orientation': ro,
-                        'end_pos': (rx[0], ry[0])
-                        }
-                # Couldn't move next to but moved near
-                if dist > 1:
-                    return False, move_success, info
-                else:
-                    return True, move_success, info
-            # Unreachable, delete location and keep trying
-            else:
-                del interesting_item_locations[ind]
-        interesting_items.remove(interesting_item)
+#             # Found plan
+#             if len(rx) > 1:
+#                 self.last_reset_pos = (gx, gy)
+#                 moveToUsingPlan(self, sx, sy, rx, ry, ro)
+#                 move_success = (int(rx[0]) == self.env.player['pos'][0]) and (
+#                             int(ry[0]) == self.env.player['pos'][2])
+#                 info = {'instance_type': interesting_item,
+#                         'relcoords': (relx, rely),
+#                         'orientation': ro,
+#                         'end_pos': (rx[0], ry[0])
+#                         }
+#                 # Couldn't move next to but moved near
+#                 if dist > 1:
+#                     return False, move_success, info
+#                 else:
+#                     return True, move_success, info
+#             # Unreachable, delete location and keep trying
+#             else:
+#                 del interesting_item_locations[ind]
+#         interesting_items.remove(interesting_item)
 
-    # Did not find plan for any object
-    info = {'instance_types': interesting_items,
-            # 'relcoords': (relx,rely),
-            # 'orientation': ro
-            }
-    return False, False, info
+#     # Did not find plan for any object
+#     info = {'instance_types': interesting_items,
+#             # 'relcoords': (relx,rely),
+#             # 'orientation': ro
+#             }
+#     return False, False, info
 
-# Given motion plan, execute steps and store trajectory
-def moveToUsingPlan(self, sx, sy, rxs, rys, ro):
-    self.motion_planning = True
-    # sx, sy: start pos
-    # rx, ry: subsequent locations to moveTo
-    # rx, ry are backwards, iterate in reverse
-    obs = self.env.observation()
-    info = self.env.get_info()
-    for i in range(len(rxs) - 1):
+# # Given motion plan, execute steps and store trajectory
+# def moveToUsingPlan(self, sx, sy, rxs, rys, ro):
+#     self.motion_planning = True
+#     # sx, sy: start pos
+#     # rx, ry: subsequent locations to moveTo
+#     # rx, ry are backwards, iterate in reverse
+#     obs = self.env.observation()
+#     info = self.env.get_info()
+#     for i in range(len(rxs) - 1):
 
-        if self.env.game_over:
-            self.motion_planning = False
-            return None, None
+#         if self.env.game_over:
+#             self.motion_planning = False
+#             return None, None
 
-        orientation = self.env.player['facing']
-        # First location is same as current location, skip
-        ind = len(rxs) - i - 2
-        rx = rxs[ind]
-        ry = rys[ind]
+#         orientation = self.env.player['facing']
+#         # First location is same as current location, skip
+#         ind = len(rxs) - i - 2
+#         rx = rxs[ind]
+#         ry = rys[ind]
 
-        # MOVE_RIGHT
-        if sx == rx - 1:
-            if orientation != 'EAST':
-                obs, rew, done, info = rotate_agent(self, orientation, 'EAST', obs, info)
-            sx += 1
-        # MOVE_LEFT
-        elif sx == rx + 1:
-            if orientation != 'WEST':
-                obs, rew, done, info = rotate_agent(self, orientation, 'WEST', obs, info)
-            sx -= 1
-        # MOVE_NORTH
-        elif sy == ry - 1:
-            if orientation != 'SOUTH':
-                obs, rew, done, info = rotate_agent(self, orientation, 'SOUTH', obs, info)
-            sy += 1
-        # MOVE_SOUTH
-        elif sy == ry + 1:
-            if orientation != 'NORTH':
-                obs, rew, done, info = rotate_agent(self, orientation, 'NORTH', obs, info)
-            sy -= 1
-        else:
-            print("error in path plan")
-            self.motion_planning = False
-            return sx, sy
-        obs, rew, done, info = self.step_env(self.env.actions_id[FORWARD_STR], obs, info)
-    orientation = self.env.player['facing']
-    if orientation != ro:
-        rotate_agent(self, orientation, ro, obs, info)
-    self.motion_planning = False
-    return sx, sy
+#         # MOVE_RIGHT
+#         if sx == rx - 1:
+#             if orientation != 'EAST':
+#                 obs, rew, done, info = rotate_agent(self, orientation, 'EAST', obs, info)
+#             sx += 1
+#         # MOVE_LEFT
+#         elif sx == rx + 1:
+#             if orientation != 'WEST':
+#                 obs, rew, done, info = rotate_agent(self, orientation, 'WEST', obs, info)
+#             sx -= 1
+#         # MOVE_NORTH
+#         elif sy == ry - 1:
+#             if orientation != 'SOUTH':
+#                 obs, rew, done, info = rotate_agent(self, orientation, 'SOUTH', obs, info)
+#             sy += 1
+#         # MOVE_SOUTH
+#         elif sy == ry + 1:
+#             if orientation != 'NORTH':
+#                 obs, rew, done, info = rotate_agent(self, orientation, 'NORTH', obs, info)
+#             sy -= 1
+#         else:
+#             print("error in path plan")
+#             self.motion_planning = False
+#             return sx, sy
+#         obs, rew, done, info = self.step_env(self.env.actions_id[FORWARD_STR], obs, info)
+#     orientation = self.env.player['facing']
+#     if orientation != ro:
+#         rotate_agent(self, orientation, ro, obs, info)
+#     self.motion_planning = False
+#     return sx, sy
 
-# Rotate agent to face correct direction and store transitions
-def rotate_agent(self, start_o, goal_o, obs=None, info=None):
-    dir_vals = {'NORTH': 0, 'EAST': 1, 'SOUTH': 2, 'WEST': 3}
-    start_val = dir_vals[start_o]
-    goal_val = dir_vals[goal_o]
-    num_rots = goal_val - start_val
-    if num_rots == 0:
-        return None, None, None, None
-    elif num_rots == 1 or num_rots == -3:
-        return self.step_env(self.env.actions_id[RIGHT_STR], obs, info)
-    elif num_rots == 2 or num_rots == -2:
-        obs, rew, done, info = self.step_env(self.env.actions_id[RIGHT_STR], obs, info)
-        return self.step_env(self.env.actions_id[RIGHT_STR], obs, info)
-    elif num_rots == 3 or num_rots == -1:
-        return self.step_env(self.env.actions_id[LEFT_STR], obs, info)
+# # Rotate agent to face correct direction and store transitions
+# def rotate_agent(self, start_o, goal_o, obs=None, info=None):
+#     dir_vals = {'NORTH': 0, 'EAST': 1, 'SOUTH': 2, 'WEST': 3}
+#     start_val = dir_vals[start_o]
+#     goal_val = dir_vals[goal_o]
+#     num_rots = goal_val - start_val
+#     if num_rots == 0:
+#         return None, None, None, None
+#     elif num_rots == 1 or num_rots == -3:
+#         return self.step_env(self.env.actions_id[RIGHT_STR], obs, info)
+#     elif num_rots == 2 or num_rots == -2:
+#         obs, rew, done, info = self.step_env(self.env.actions_id[RIGHT_STR], obs, info)
+#         return self.step_env(self.env.actions_id[RIGHT_STR], obs, info)
+#     elif num_rots == 3 or num_rots == -1:
+#         return self.step_env(self.env.actions_id[LEFT_STR], obs, info)
 
 
 # TODO: Learn these probabilities in a smarter way, it's in a simpler space than the actual task
@@ -1196,8 +1196,8 @@ class GridworldMDP(NovelgridworldInterface):
             self.generate_obs_action_spaces()
             self.first_space_init = False
 
-        # if render:
-        #     # self.env.render()
+        if render:
+            self.env.render()
         #     # self.env.render()
 
     def set_items_id(self, items):
@@ -1286,18 +1286,19 @@ class GridworldMDP(NovelgridworldInterface):
         # REMOVE CRAFT crafting_table - don't think this is present in tournament, but is in API
         if 'CRAFT_{}'.format(CT_STR) in self.crafting_actions:
             self.crafting_actions.remove('CRAFT_{}'.format(CT_STR))
-
-        self.select_actions = ['SELECT_' + item for item in self.mdp_inventory_items]
+        self.non_selectable_items = {'rubber', 'plank', 'stick', 'pogo_stick','crafting_table', 'tree_log'}
+        self.select_actions = ['SELECT_' + item for item in set(self.mdp_inventory_items)^self.non_selectable_items]
 
         self.all_actions = self.manip_actions + self.crafting_actions + self.select_actions
         self.actions_id = {}
         for i in range(len(self.all_actions)):
             self.actions_id[self.all_actions[i]] = i
-        # print(self.actions_id)
+        # print("self.actions ID from NG_Learner_util = ",self.actions_id)
         if not self.restrict_space:
             self.action_space = spaces.Discrete(len(self.actions_id))
         else:
             self.action_space = spaces.Discrete(len(self.manip_actions))
+        # print("Action space length is: ", self.action_space)
 
         # TODO: compute max possible number of items given an env? or just set to arbitrary cap
         self.max_items = 20
@@ -1327,22 +1328,23 @@ class GridworldMDP(NovelgridworldInterface):
         low = np.concatenate((low_map,[0],np.zeros(len(self.mdp_inventory_items))))
         high = np.concatenate((high_map, [len(self.mdp_items_id)+1], self.max_items*np.ones(len(self.mdp_inventory_items))))
         self.observation_space = spaces.Box(low, high, dtype=np.float32)
-
+        # print("Observation space length is: ", self.observation_space)
+        # time.sleep(10)
         # Need to update map using updated items_id set
         sense_all_command_result = self.run_SENSE_ALL_and_update('NONAV')
         self.accumulated_step_cost += sense_all_command_result['stepCost']
 
         self.num_types = len(self.mdp_items_id)+1
 
-        print('updated items, recipes, and actions in MDP')
-        print('Items: ', self.mdp_items_id)
-        print('Craft items: ', self.env.recipes.keys())
-        print('Actions: ', self.actions_id)
+        # print('updated items, recipes, and actions in MDP')
+        # print('Items: ', self.mdp_items_id)
+        # print('Craft items: ', self.env.recipes.keys())
+        # print('Actions: ', self.actions_id)
         self.first_space_init = True
 
     def step(self, action_id):
         action = self.all_actions[action_id]
-
+        # print("NG Learner action: {} and action id: {}".format(action, action_id))
         # Need to map to action string?
         # we should get the state of the inventory here, or the state of the world from which we need 
         # to design a reward function. and then after executing the action we will compare and give reward.
