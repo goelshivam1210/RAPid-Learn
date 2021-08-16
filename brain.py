@@ -52,10 +52,11 @@ import copy
 import argparse
 import subprocess
 
-import gym
 import numpy as np
 from scipy.spatial import distance
+import gym
 import gym_novel_gridworlds
+
 
 from utils import AStarOperator, AStarPlanner
 
@@ -86,15 +87,6 @@ class Brain:
         self.novelty_name = None
         self.completed_trials = 0
 
-        pass
-
-    # def init_brain(self):
-    #     pass
-
-
-    # def reset_brain(self):
-    #     pass
-
     def run_brain(self, env_id=None, novelty_name = None):
         '''        
             This is the driving function of this class.
@@ -112,7 +104,7 @@ class Brain:
         plan, game_action_set = self.call_planner(self.domain_file_name, "problem", env) # get a plan
         # print("game action set aftert the planner = {}".format(game_action_set))
         result, failed_action = self.execute_plan(env, game_action_set, obs)
-        print ("result = \n {}  \n Failed Action = \n {}".format(result, failed_action))
+        print ("result = {}  Failed Action =  {}".format(result, failed_action))
         
         if not result and failed_action is not None: # cases when the plan failed for the first time and the agent needs to learn a new action using RL
             print ("Instantiating a RL Learner to learn a new action to solve the impasse.")
@@ -128,7 +120,7 @@ class Brain:
  
         if result:
             print("succesfully completed the task without any hassle!")
-            print("Needed to transfer: ", self.completed_trails)
+            # print("Needed to transfer: ", self.completed_trails)
 
         pass
 
@@ -149,13 +141,12 @@ class Brain:
             return learned
 
         else:
+            print("\n Learner Using the learned policy")
             played = self.learner.play_learned_policy(env, novelty_name=self.novelty_name, operator_name=failed_action) # returns whether the policy was successfully played or not
+            print("Inventory: ",env.inventory_items_quantity)
+            print("was it succ: ", played)
+            time.sleep(2)
             return played
-            # if not played: # cases whrn the learned policy did not behave as intended
-            #     learned = self.learn_policy(failed_action, transfer = False) # learn to reach the goal state by transfering from the exisitng policy
-            # else:
-            #     self.completed_trials+=1
-            #     return played
 
     def call_planner(self, domain, problem, env):
         '''
@@ -183,11 +174,11 @@ class Brain:
             if ff_plan[i].split(" ")[0] == "approach":
                 action_set.append(ff_plan[i])
             elif ff_plan[i].split(" ")[0] == "select":
-                print ("Action making usable  = {}".format(ff_plan[i]))
+                # print ("Action making usable  = {}".format(ff_plan[i]))
                 to_append = ff_plan[i].split(" ")
                 sep = "_"
                 to_append = sep.join(to_append).capitalize()
-                print ("to append = {}".format(to_append))
+                # print ("to append = {}".format(to_append))
                 action_set.append(to_append)
 
             else:
@@ -211,7 +202,7 @@ class Brain:
         for i in range(len(game_action_set)):
             if game_action_set[i] in action_map:
                 game_action_set[i] = env.actions_id[game_action_set[i]]
-        print (game_action_set)
+        # print (game_action_set)
         return action_set, game_action_set
 
     def instantiate_env(self, env_id, novelty_family=None, inject=False):
@@ -222,7 +213,7 @@ class Brain:
          ### O/P: it returns an instance of the environment.
         '''
         env = gym.make(env_id)
-        # env.render()
+        env.render()
         env.unbreakable_items.add('crafting_table') # Make crafting table unbreakable for easy solving of task.
         env.reward_done = 1000
         env.reward_intermediate = 50
@@ -270,46 +261,14 @@ class Brain:
         astar_planner = AStarPlanner(ox, oy, grid_size, robot_radius)
         astar_operator = AStarOperator(name = None, goal_type=None, effect_set=None)
 
-        #  """
-        # A star path search
-
-        # input:
-        #     s_x: start x position [m]
-        #     s_y: start y position [m]
-        #     gx: goal x position [m]
-        #     gy: goal y position [m]
-
-        # output:
-        #     rx: x position list of the final path
-        #     ry: y position list of the final path
-        # """
-        # find the random location of the loc2 in the map.
         loc2 = action.split(" ")[-1] # last value of the approach action gives the location to go to
-        # if loc2 in item_map:
-        #     loc2 = item_map[loc2]
-        # else:
-        #     print("ERROR: approach goal {} is not in item map {}".format(loc2, item_map))
-        #     quit()
         print ("location to go to = {}".format(loc2))
         gx, gy = sx, sy
-        # EW: motion planning issue is loc2 (e.g. 'tree_log') is not found in env.items
-        #     So this problem also stems from the interfacing issues
+
         if loc2 in env.items:
-            # get the items_id in the environment
-            # find the item in the map
-            # print ("ID we are looking for = {}".format(env.items_id[loc2]))
-            # print (np.where(env.items_id[loc2], x = env.map)[0].T)
             locs = np.asarray((np.where(env.map == env.items_id[loc2]))).T
-            # for i in range (gx.shape[0]):
-                # distances = distance.euclidean(gx[i], env.agent_location)
-            # print ("\n",locs)
             gx, gy = locs[0][1], locs[0][0]
-            # print ("\n ", gx, gy)
-        # Can't actually go into the item, so randomly sample point next to it to go to
         relcoord = np.random.randint(4)
-        # rx, ry = [], []
-        # num_attempts = 0
-        # while len(rx) < 2 and num_attempts < 4:
         gx_ = gx
         gy_ = gy
         if relcoord == 0:
@@ -365,7 +324,7 @@ class Brain:
         '''
         rew_eps = 0
         count = 0
-        # env.render()
+        env.render()
         matching = [s for s in plan if "approach" in s]
         print ("matching = {}".format(matching))
         i = 0
@@ -373,6 +332,8 @@ class Brain:
             print("Executing plan_step: ", plan[i])
             sub_plan = []
             if plan[i] in self.failed_action_set:#switch to rl
+                print("\n Using the learned policy")
+                time.sleep(2)
                 self.executed_learned_policy = self.call_learner(failed_action = plan[i], env = env)
                 if not self.executed_learned_policy:
                     return False, None
@@ -386,11 +347,11 @@ class Brain:
                 for j in range (len(sub_plan)):
                     env.render()
                     obs, reward, done, info = env.step(env.actions_id[sub_plan[j]])
-                    print ("Info = {}".format(info))
+                    # print ("Info = {}".format(info))
                     if info['result']==False:
                         self.failed_action_set[plan[i]] = None
                         return False, plan[i]
-                    # env.render()
+                    env.render()
                     rew_eps += reward
                     count += 1
                     if done:

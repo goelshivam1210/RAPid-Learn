@@ -1,5 +1,5 @@
 import gym
-import tensorflow as tf
+# import tensorflow as tf
 import numpy as np
 from subprocess import check_output
 
