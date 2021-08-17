@@ -35,7 +35,7 @@ class SimpleDQN(object):
 		#create model
 		self.init_model(random_seed)
 		
-		self.log_dir = 'results'
+		self.log_dir = 'policies'
 		self.env_id = 'NovelGridworld-v0'
 		os.makedirs(self.log_dir, exist_ok = True)
 
@@ -191,49 +191,18 @@ class SimpleDQN(object):
 	def finish_episode(self):
 		# stack together all inputs, hidden states, action gradients, and rewards for this episode
 		
-		# this needs to be stored to be used by policy_backward
-		# self._xs is a list of vectors of size input dim and the number of vectors is equal to the number of time steps in the episode
 		self._epx = np.vstack(self._xs)
-		
-		
-		#for i in range(0,len(self._hs)):
-		#	print(self._hs[i])
-		
-		# len(self._hs) = # time steps
-		# stores hidden state activations
+
 		eph = np.vstack(self._hs)
-		
-		#for i in range(0,len(self._dlogps)):
-		#	print(self._dlogps[i])
-		
-		# self._dlogps stores a history of the probabilities over actions selected by the agent
 		epdlogp = np.vstack(self._dlogps)
 		
-		# self._drs is the history of rewards
-		#for i in range(0,len(self._drs)):
-		#	print(self._drs[i])
 		epr = np.vstack(self._drs)
 		
 		self._xs,self._hs,self._dlogps,self._drs = [],[],[],[] # reset array memory
 
 		# compute the discounted reward backwards through time
 		discounted_epr = (self.discount_rewards(epr))
-		#for i in range(0,len(discounted_epr)):
-		#	print(str(discounted_epr[i]) + "\t"+str(epr[i]))
-		
-		
-		# #print(discounted_epr)
-		# discounted_epr_mean = np.mean(discounted_epr)
-		# #print(discounted_epr_mean)
-		
-		# # standardize the rewards to be unit normal (helps control the gradient estimator variance)
-		
-		# #discounted_epr -= np.mean(discounted_epr)
-		# discounted_epr = np.subtract(discounted_epr,discounted_epr_mean)
-		
-		
-		# discounted_epr /= np.std(discounted_epr)+0.01
-		
+
 		epdlogp *= discounted_epr # modulate the gradient with advantage (PG magic happens right here.)
 		
 		start_time = time.time()
@@ -250,17 +219,17 @@ class SimpleDQN(object):
 			self._model[k] -= self._learning_rate * g / (np.sqrt(self._rmsprop_cache[k]) + 1e-5)
 			self._grad_buffer[k] = np.zeros_like(v) # reset batch gradient buffer
 
-	def save_model(self, curriculum_no, beam_no, env_no):
+	def save_model(self, novelty_name, operator_name):
 
-		experiment_file_name = '_c' + str(curriculum_no) + '_b' + str(beam_no) + '_e' + str(env_no)
-		path_to_save = self.log_dir + os.sep + self.env_id + experiment_file_name + '.npz'
+		experiment_file_name = str(novelty_name) + '_' + str(operator_name)
+		path_to_save = self.log_dir + os.sep + self.env_id + '_' + experiment_file_name + '.npz'
 		np.savez(path_to_save, layer1 = self._model['W1'], layer2 = self._model['W2'])
 		print("saved to: ", path_to_save)
 
-	def load_model(self, curriculum_no, beam_no, env_no):
+	def load_model(self, novelty_name, operator_name):
 
-		experiment_file_name = '_c' + str(curriculum_no) + '_b' + str(beam_no) + '_e' + str(env_no)
-		path_to_load = self.log_dir + os.sep + self.env_id + experiment_file_name + '.npz'
+		experiment_file_name = str(novelty_name) + '_' + str(operator_name)
+		path_to_load = self.log_dir + os.sep + self.env_id + '_' + experiment_file_name + '.npz'
 		data = np.load(path_to_load)
 		self._model['W1'] = data['layer1']
 		self._model['W2'] = data['layer2']

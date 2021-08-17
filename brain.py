@@ -82,10 +82,12 @@ action_map = {'moveforward':'Forward',
 class Brain:
     
     def __init__(self):
+        # self.novelty_name = 'rubber_tree'
         self.learner = None
         self.failed_action_set = {}
         self.novelty_name = None
         self.completed_trials = 0
+        self.learned_policies_dict = {} # store failed action:learner_instance object
 
     def run_brain(self, env_id=None, novelty_name = None):
         '''        
@@ -95,7 +97,7 @@ class Brain:
         env_id = 'NovelGridworld-Pogostick-v1' # hardcoded for now. will add the argparser later.
         env = self.instantiate_env(env_id) # make a new instance of the environment.
         # self.novelty_name = novelty_name # to be used in future.
-        self.novelty_name = 'axetobreak'
+        self.novelty_name = 'rubbertree'
         env = self.inject_novelty(novelty_name = self.novelty_name)
         obs = env.reset() 
         self.generate_pddls(env)
@@ -134,18 +136,14 @@ class Brain:
             env = self.instantiate_env(env_id, None, False)  # make a new instance of the environment.
             obs = env.reset()
 
-        if self.learner is None:
+        if failed_action not in self.learned_policies_dict:
             self.learner = Learner(failed_action, env)
+            self.learned_policies_dict[failed_action] = self.learner # save the learner instance object to the learned poliocies dict.
             learned = self.learner.learn_policy(self.novelty_name) # learn to reach the goal state, if reached save the learned policy using novelty_name
-            # learned = self.learner.play_learned_policy(env, novelty_name=self.novelty_name, operator_name=failed_action) # returns whether the policy was successfully played or not
             return learned
-
         else:
             print("\n Learner Using the learned policy")
-            played = self.learner.play_learned_policy(env, novelty_name=self.novelty_name, operator_name=failed_action) # returns whether the policy was successfully played or not
-            print("Inventory: ",env.inventory_items_quantity)
-            print("was it succ: ", played)
-            time.sleep(2)
+            played = self.learned_policies_dict[failed_action].play_learned_policy(env, novelty_name=self.novelty_name, operator_name=failed_action) # returns whether the policy was successfully played or not
             return played
 
     def call_planner(self, domain, problem, env):
@@ -174,16 +172,13 @@ class Brain:
             if ff_plan[i].split(" ")[0] == "approach":
                 action_set.append(ff_plan[i])
             elif ff_plan[i].split(" ")[0] == "select":
-                # print ("Action making usable  = {}".format(ff_plan[i]))
                 to_append = ff_plan[i].split(" ")
                 sep = "_"
                 to_append = sep.join(to_append).capitalize()
-                # print ("to append = {}".format(to_append))
                 action_set.append(to_append)
 
             else:
                 action_set.append(ff_plan[i].split(" ")[0])
-        # print (ff_plan[0].split())
 
         if "unsolvable" in output:
             print ("Plan not found with FF! Error: {}".format(
@@ -191,14 +186,14 @@ class Brain:
         if ff_plan[-1] == "reach-goal":
             ff_plan = ff_plan[:-1]
         
-        print ("game action set  = {}".format(action_set))
+        # print ("game action set  = {}".format(action_set))
         # convert the action set to the actions permissable in the domain
         game_action_set = copy.deepcopy(action_set)
         # print ("game action set = {}".format(game_action_set))
         for i in range(len(game_action_set)):
             if game_action_set[i].split(" ")[0] != "approach" and game_action_set[i].split("_")[0] != "Select":
                 game_action_set[i] = action_map[game_action_set[i]]
-        print ("game action set = {}".format(game_action_set))
+        # print ("game action set = {}".format(game_action_set))
         for i in range(len(game_action_set)):
             if game_action_set[i] in action_map:
                 game_action_set[i] = env.actions_id[game_action_set[i]]
@@ -297,9 +292,9 @@ class Brain:
         env_id = 'NovelGridworld-Pogostick-v1'
         env = gym.make(env_id)
 
-        novelty_arg1 = 'wooden'
+        novelty_arg1 = self.novelty_name
         novelty_arg2 = ''
-        difficulty = 'easy'
+        difficulty = 'medium'
 
         env = inject_novelty(env, novelty_name, difficulty, novelty_arg1, novelty_arg2)
         return env
@@ -331,10 +326,30 @@ class Brain:
         while (i < len(plan)):
             print("Executing plan_step: ", plan[i])
             sub_plan = []
-            if plan[i] in self.failed_action_set:#switch to rl
-                print("\n Using the learned policy")
-                time.sleep(2)
-                self.executed_learned_policy = self.call_learner(failed_action = plan[i], env = env)
+            if plan[i] in self.failed_action_set and 'approach' not in plan[i]:#switch to rl
+                obs, reward, done, info = env.step(env.actions_id[plan[i]])
+                self.executed_learned_policy = True # weird Hack.
+                print ("Info = {}".format(info))
+                if info['result']==False:
+                    print("\n Using the learned policy")
+                    self.executed_learned_policy = self.call_learner(failed_action = plan[i], env = env)
+                if not self.executed_learned_policy:
+                    return False, None
+                else:
+                    i+=1
+            elif plan[i] in self.failed_action_set and 'approach' in plan[i]:
+                sub_plan = self.run_motion_planner(env, plan[i])
+                print ("subplan = ",sub_plan)
+                self.executed_learned_policy = True
+                # now execute the sub-plan
+                for j in range (len(sub_plan)):
+                    env.render()
+                    obs, reward, done, info = env.step(env.actions_id[sub_plan[j]])
+                    if info['result']==False:
+                        print("\n Using the learned policy")
+                        self.executed_learned_policy = self.call_learner(failed_action = plan[i], env = env)
+                        if self.executed_learned_policy:
+                            break
                 if not self.executed_learned_policy:
                     return False, None
                 else:
@@ -342,6 +357,7 @@ class Brain:
             elif "approach" in plan[i] and plan[i] not in self.failed_action_set:
                 # call the motion planner here to generate the lower level actions
                 sub_plan = self.run_motion_planner(env, plan[i])
+                print ("subplan = ",sub_plan)
                 i+=1
                 # now execute the sub-plan
                 for j in range (len(sub_plan)):
@@ -358,7 +374,7 @@ class Brain:
                         if env.inventory_items_quantity[env.goal_item_to_craft] >= 1: # success measure(goal achieved)
                             return True, None
             # go back to the planner's normal plan
-            else:
+            elif "approach" not in plan[i] and plan[i] not in self.failed_action_set:
                 print ("Executing {} action from main plan in the environment".format(env.actions_id[plan[i]]))
                 env.render()
                 obs, reward, done, info = env.step(env.actions_id[plan[i]])

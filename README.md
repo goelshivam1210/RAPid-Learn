@@ -24,12 +24,21 @@ Use the requirements file to install the dependencies
 
 ### Setup the gym_novelgridworld
 
-Install [gym_novel_gridworlds](https://github.com/gtatiya/gym-novel-gridworlds).
+Install [gym_novel_gridworlds](https://github.com/gtatiya/gym-novel-gridworlds). <BR>
+
+Switch to branch `RAPid-Learn` 
 
 ### Run the code
 
 Brain.py consists of the main code. 
 
 To run the RAPidLearn
+ 
+ In order to insert novelty do the following:
+ Change the variable `self.novelty_name` value (line #100 in `brain.py`) to any of the following
+ 1. `'axetobreak'`
+ 2. `'firecraftingtable'`
+ 3. `'rubbertree'`
 
+Run <BR>
 ``` python brain.py```

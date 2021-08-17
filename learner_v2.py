@@ -15,7 +15,7 @@ from SimpleDQN import *
 # Params
 # STEPCOST_PENALTY = 0.012
 MAX_TIMESTEPS = 150
-MAX_EPISODES = 10000
+MAX_EPISODES = 100000
 NUM_HIDDEN = 16
 GAMMA = 0.95
 LEARNING_RATE = 1e-3
@@ -99,7 +99,7 @@ class Learner:
         self.learned_failed_action = self.run_episode(transfer, novelty_name)
 
         if self.learned_failed_action:
-            self.learning_agent.save_model(0,0,0)
+            self.learning_agent.save_model(novelty_name, self.failed_action)
             return True
         else:
             return False
@@ -152,14 +152,15 @@ class Learner:
                         self.learning_agent.update_parameters()
 
                     if done:
-                        print ("EP >> {}, Timesteps >> {},  Rew >> {}, done = {}, done rate (20) = {}".format(episode, episode_timesteps, reward_per_episode, done, np.mean(self.Done[-20:])))
-                        print("\n")
+                        if episode % 200 == 0:
+                            print ("EP >> {}, Timesteps >> {},  Rew >> {}, done = {}, done rate (20) = {}".format(episode, episode_timesteps, reward_per_episode, done, np.mean(self.Done[-20:])))
+                            print("\n")
                         self.Done.append(1)
                         self.R.append(reward_per_episode)
                         if episode > 70:
-                            if np.mean(self.R[-20:]) > 900: # check the average reward for last 70 episodes
+                            if np.mean(self.R[-20:]) > 970: # check the average reward for last 70 episodes
                                 # for future we can write an evaluation function here which runs a evaluation on the current policy.
-                                if  np.sum(self.Done[-20:]) > 17: # and check the success percentage of the agent > 80%.
+                                if  np.sum(self.Done[-20:]) > 19: # and check the success percentage of the agent > 80%.
                                     print ("The agent has learned to reach the subgoal")
 
                                     # plotting function. Just for testing purposes.
@@ -173,8 +174,9 @@ class Learner:
                                     return True  
                         break
                     elif episode_timesteps >= MAX_TIMESTEPS:
-                        print ("EP >> {}, Timesteps >> {},  Rew >> {} done = {} done rate (20) = {}".format(episode, episode_timesteps, reward_per_episode, done, np.mean(self.Done[-20:])))
-                        print("\n")
+                        if episode % 200 == 0:
+                            print ("EP >> {}, Timesteps >> {},  Rew >> {} done = {} done rate (20) = {}".format(episode, episode_timesteps, reward_per_episode, done, np.mean(self.Done[-20:])))
+                            print("\n")
                         self.Done.append(0)
                         self.R.append(reward_per_episode)
                         break
@@ -214,14 +216,14 @@ class Learner:
         done = False
         obs = self.env.get_observation()
         info = self.env.get_info()
-        self.learning_agent.load_model(0,0,0)
+        self.learning_agent.load_model(novelty_name=novelty_name, operator_name=self.failed_action)
         episode_timestep = 0
         self.success_func = self.create_success_func(obs,info) # self.success_func returns a boolean indicating whether the desired effects were met
 
         while True:
             
             obs, action, done, info = self.step_env(orig_obs=obs, info=info, done=done)
-            self.env.render()
+            # self.env.render()
             self.is_success_met = self.success_func(self.env.get_observation(),self.env.get_info()) # self.success_func returns a boolean indicating whether the desired effects were met
             episode_timestep += 1 
             if self.is_success_met:
