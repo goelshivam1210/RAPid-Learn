@@ -41,7 +41,7 @@ Important References
 ##
 # make a new filoe called experiment.py which runs this script accordingly.
 
-import operator_generalization
+# import operator_generalization
 import os
 import re
 import sys
@@ -60,12 +60,14 @@ import gym_novel_gridworlds
 
 from utils import AStarOperator, AStarPlanner
 
-from gym_novel_gridworlds.wrappers import SaveTrajectories, LimitActions
-from gym_novel_gridworlds.observation_wrappers import LidarInFront, AgentMap
+# from gym_novel_gridworlds.wrappers import SaveTrajectories, LimitActions
+# from gym_novel_gridworlds.observation_wrappers import LidarInFront, AgentMap
 from gym_novel_gridworlds.novelty_wrappers import inject_novelty
 from generate_pddl import *
 from learner_v2 import *
-from operator_generalization import *
+# from operator_generalization import *
+
+CLEVER_EXPLORATION = True # flag for clever exploration as opposed to epsilon-greedy exploration
 
 action_map = {'moveforward':'Forward',
         'turnleft':'Left',
@@ -88,6 +90,7 @@ class Brain:
         self.novelty_name = None
         self.completed_trials = 0
         self.learned_policies_dict = {} # store failed action:learner_instance object
+        self.actions_bump_up = {}
 
     def run_brain(self, env_id=None, novelty_name = None):
         '''        
@@ -97,8 +100,26 @@ class Brain:
         env_id = 'NovelGridworld-Pogostick-v1' # hardcoded for now. will add the argparser later.
         env = self.instantiate_env(env_id) # make a new instance of the environment.
         # self.novelty_name = novelty_name # to be used in future.
-        self.novelty_name = 'rubbertree'
+        # get environment instances before injecting novelty
+        env_pre_items_quantity = copy.deepcopy(env.items_quantity)
+        env_pre_actions = copy.deepcopy(env.actions_id)
+        
+        self.novelty_name = 'axetobreak'
         env = self.inject_novelty(novelty_name = self.novelty_name)
+
+        # get environment instances after novelty injection
+        env_post_items_quantity = copy.deepcopy(env.items_quantity)
+        env_post_actions = copy.deepcopy(env.actions_id)
+
+        if len(env_post_items_quantity.keys() - env_pre_items_quantity.keys()) > 0:
+            # we need to bump up the movement actions probabiloities
+            self.actions_bump_up.update({'Forward':env_post_actions['Forward']})
+            self.actions_bump_up.update({'Left':env_post_actions['Left']})
+            self.actions_bump_up.update({'Right':env_post_actions['Right']})
+            
+        for action in env_post_actions.keys() - env_pre_actions.keys(): # add new actions
+            self.actions_bump_up.update({action: env_post_actions[action]})             
+
         obs = env.reset() 
         self.generate_pddls(env)
         self.domain_file_name = "domain"
@@ -137,7 +158,9 @@ class Brain:
             obs = env.reset()
 
         if failed_action not in self.learned_policies_dict:
-            self.learner = Learner(failed_action, env)
+            # print ("")
+            self.actions_bump_up.update({failed_action:env.actions_id[failed_action]}) # add failed actions in the list
+            self.learner = Learner(failed_action, env, self.actions_bump_up, CLEVER_EXPLORATION)
             self.learned_policies_dict[failed_action] = self.learner # save the learner instance object to the learned poliocies dict.
             learned = self.learner.learn_policy(self.novelty_name) # learn to reach the goal state, if reached save the learned policy using novelty_name
             return learned
@@ -215,17 +238,6 @@ class Brain:
         if inject:
             env = inject_novelty(env, novelty_family[0], novelty_family[1], novelty_family[2], novelty_family[3]) 
         return env
-
-    def call_operator_learner(self, failed_action, learned_policy):
-        '''
-        This function calls the operator learner class.
-        It converts the learned policy to the operator and updates the domain file of the PDDL representation.
-        '''
-
-        og = operator_generalization(failed_action, learned_policy)
-        # learned_operator = og.policy_to_action()
-        return og.policy_to_action()
-        pass
     
     def run_motion_planner(self, env, action):
         # Instantiation of the AStar Planner with the 
@@ -292,15 +304,12 @@ class Brain:
         env_id = 'NovelGridworld-Pogostick-v1'
         env = gym.make(env_id)
 
-        novelty_arg1 = self.novelty_name
+        novelty_arg1 = 'wooden'
         novelty_arg2 = ''
         difficulty = 'medium'
 
         env = inject_novelty(env, novelty_name, difficulty, novelty_arg1, novelty_arg2)
         return env
-    
-    def run_trials():
-        pass
 
     def generate_pddls(self, env):
         self.pddl_dir = "PDDL"
@@ -390,8 +399,6 @@ class Brain:
                 i+=1
         return False, None
 
-    def evaluate_policy():
-        pass
 if __name__ == '__main__':
     brain1 = Brain()
     brain1.run_brain()

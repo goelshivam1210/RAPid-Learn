@@ -3,6 +3,7 @@ Author: Shivam Goel
 Email: goelshivam1210@gmail.com
 '''
 
+from config.argparse import MIN_EPSILON
 import time
 import numpy as np
 import math
@@ -20,18 +21,23 @@ NUM_HIDDEN = 16
 GAMMA = 0.95
 LEARNING_RATE = 1e-3
 DECAY_RATE = 0.99
-MAX_EPSILON = 0.1
+MIN_EPSILON = 0.05
+MAX_EPSILON = 0.70
 random_seed = 2
+EXPLORATION_STOP = 20000
+LAMBDA = -math.log(0.01) / EXPLORATION_STOP # speed of decay
 
 class Learner:
-    def __init__(self, failed_action, env, novelty_flag=False) -> None:
+    def __init__(self, failed_action, env, actions_bump_up, clever_exploration = False, novelty_flag=False) -> None:
 
         self.env_to_reset = copy.deepcopy(env) # copy the complete environment instance
         self.env = env
         if failed_action == "Break":
             failed_action = "Break tree_log"
         self.failed_action = failed_action
+        self.actions_bump_up = actions_bump_up
         self.learned_failed_action = False
+        self.clever_exploration_flag = clever_exploration
         if not self.learned_failed_action:
             self.mode = 'exploration' # we are exploring the novel environment to stitch the plan by learning the new failed action.
         else:
@@ -56,8 +62,9 @@ class Learner:
         self.create_success_func = get_create_success_func_from_predicate_set(self.desired_effects)
         self.success_func = None
 
-        agent = SimpleDQN(int(env.action_space.n),int(env.observation_space.shape[0]),NUM_HIDDEN,LEARNING_RATE,GAMMA,DECAY_RATE,MAX_EPSILON,random_seed)
+        agent = SimpleDQN(int(env.action_space.n),int(env.observation_space.shape[0]),NUM_HIDDEN,LEARNING_RATE,GAMMA,DECAY_RATE,MAX_EPSILON, self.clever_exploration_flag, self.actions_bump_up, self.env.actions_id, random_seed)
         agent.set_explore_epsilon(MAX_EPSILON)
+
         self.learning_agent = agent
         self.reset_near_values = None
         self.reset_select_values = None
@@ -122,6 +129,9 @@ class Learner:
             # time.sleep(2)
             reward_per_episode = 0
             episode_timesteps = 0
+            epsilon = MIN_EPSILON + (MAX_EPSILON - MIN_EPSILON) * \
+                math.exp(-LAMBDA * episode)
+            self.learning_agent._explore_eps = epsilon
             # self.env.render()
             obs = self.env.reset(reset_from_failed_state = True, env_instance = copy.deepcopy(self.env_to_reset))
             # print(self.env.inventory_items_quantity)
@@ -153,7 +163,7 @@ class Learner:
 
                     if done:
                         if episode % 200 == 0:
-                            print ("EP >> {}, Timesteps >> {},  Rew >> {}, done = {}, done rate (20) = {}".format(episode, episode_timesteps, reward_per_episode, done, np.mean(self.Done[-20:])))
+                            print ("EP >> {}, Timesteps >> {},  Rew >> {}, done = {}, done rate (20) = {}, eps = {}".format(episode, episode_timesteps, reward_per_episode, done, np.mean(self.Done[-20:]), round(self.learning_agent._explore_eps, 3)))
                             print("\n")
                         self.Done.append(1)
                         self.R.append(reward_per_episode)
@@ -175,7 +185,8 @@ class Learner:
                         break
                     elif episode_timesteps >= MAX_TIMESTEPS:
                         if episode % 200 == 0:
-                            print ("EP >> {}, Timesteps >> {},  Rew >> {} done = {} done rate (20) = {}".format(episode, episode_timesteps, reward_per_episode, done, np.mean(self.Done[-20:])))
+                            print ("EP >> {}, Timesteps >> {},  Rew >> {}, done = {}, done rate (20) = {}, eps = {}".format(episode, episode_timesteps, reward_per_episode, done, np.mean(self.Done[-20:]), round(self.learning_agent._explore_eps, 3)))
+                            # print ("EP >> {}, Timesteps >> {},  Rew >> {} done = {} done rate (20) = {}".format(episode, episode_timesteps, reward_per_episode, done, np.mean(self.Done[-20:])))
                             print("\n")
                         self.Done.append(0)
                         self.R.append(reward_per_episode)
@@ -201,6 +212,8 @@ class Learner:
         ## Send action ##
         obs2, _r, _d, info_ = self.env.step(action)
         # self.env.render()
+        # if action == self.env.actions_id['Spray']:
+        #     print ("used action = ", self.env.actions_id['Spray'])
         # self.last_action = self.env.all_actions[action]
         self.last_obs = orig_obs.copy()
         info = info_
