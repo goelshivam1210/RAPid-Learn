@@ -67,7 +67,8 @@ from generate_pddl import *
 from learner_v2 import *
 # from operator_generalization import *
 
-CLEVER_EXPLORATION = True # flag for clever exploration as opposed to epsilon-greedy exploration
+GUIDED_ACTION = False # flag for clever exploration as opposed to epsilon-greedy exploration
+GUIDED_POLICY = False
 
 action_map = {'moveforward':'Forward',
         'turnleft':'Left',
@@ -83,16 +84,16 @@ action_map = {'moveforward':'Forward',
 
 class Brain:
     
-    def __init__(self):
+    def __init__(self, render):
         # self.novelty_name = 'rubber_tree'
         self.learner = None
         self.failed_action_set = {}
         self.novelty_name = None
         self.completed_trials = 0
         self.learned_policies_dict = {} # store failed action:learner_instance object
-        self.actions_bump_up = {}
+        self.render = render
 
-    def run_brain(self, env_id=None, novelty_name = None):
+    def run_brain(self, env_id=None, novelty_name=None, num_trails_pre_novelty=None, num_trials_post_learning=None, inject_multiple = False):
         '''        
             This is the driving function of this class.
             Call the environment and run the environment for x number of trials.
@@ -103,22 +104,27 @@ class Brain:
         # get environment instances before injecting novelty
         env_pre_items_quantity = copy.deepcopy(env.items_quantity)
         env_pre_actions = copy.deepcopy(env.actions_id)
-        
-        self.novelty_name = 'axetobreak'
-        env = self.inject_novelty(novelty_name = self.novelty_name)
+        if novelty_name is None:
+            self.novelty_name = 'axetobreakeasy' #axetobreakeasy #axetobreakhard #firecraftingtableeasy #firecraftingtablehard #rubbertree
+        else:
+            self.novelty_name = novelty_name
 
+        env = self.inject_novelty(novelty_name = self.novelty_name)
+        self.new_item_in_world = None
         # get environment instances after novelty injection
         env_post_items_quantity = copy.deepcopy(env.items_quantity)
         env_post_actions = copy.deepcopy(env.actions_id)
 
         if len(env_post_items_quantity.keys() - env_pre_items_quantity.keys()) > 0:
-            # we need to bump up the movement actions probabiloities
-            self.actions_bump_up.update({'Forward':env_post_actions['Forward']})
+            # we need to bump up the movement actions probabilities and set flag for new item to True
+            self.new_item_in_world = env_post_items_quantity.keys() - env_pre_items_quantity.keys() # This is a dictionary
+            self.actions_bump_up.update({'Forward':env_post_actions['Forward']}) # add all the movement actions
             self.actions_bump_up.update({'Left':env_post_actions['Left']})
             self.actions_bump_up.update({'Right':env_post_actions['Right']})
             
         for action in env_post_actions.keys() - env_pre_actions.keys(): # add new actions
             self.actions_bump_up.update({action: env_post_actions[action]})             
+        # print("Observation space: ", env.observation_space.shape[0])
 
         obs = env.reset() 
         self.generate_pddls(env)
@@ -127,28 +133,27 @@ class Brain:
         plan, game_action_set = self.call_planner(self.domain_file_name, "problem", env) # get a plan
         # print("game action set aftert the planner = {}".format(game_action_set))
         result, failed_action = self.execute_plan(env, game_action_set, obs)
-        print ("result = {}  Failed Action =  {}".format(result, failed_action))
+        # print ("result = {}  Failed Action =  {}".format(result, failed_action))
         
         if not result and failed_action is not None: # cases when the plan failed for the first time and the agent needs to learn a new action using RL
-            print ("Instantiating a RL Learner to learn a new action to solve the impasse.")
+            # print ("Instantiating a RL Learner to learn a new action to solve the impasse.")
             self.learned = self.call_learner(failed_action=failed_action, env=env)
             
             if self.learned: # when the agent successfully learns a new action, it should now test it to re-run the environment.
-                print ("Agent succesfully learned a new action in the form of policy. Now resetting to test.")
+                # print ("Agent succesfully learned a new action in the form of policy. Now resetting to test.")
                 self.run_brain()
             
         if not result and failed_action is None: # The agent used the learned policy and yet was unable to solve
-            print ("Failed to execute policy successfully. Now resetting for another trial.")
+            # print ("Failed to execute policy successfully. Now resetting for another trial.")
             self.run_brain()
  
         if result:
-            print("succesfully completed the task without any hassle!")
+            pass
+            # print("succesfully completed the task without any hassle!")
             # print("Needed to transfer: ", self.completed_trails)
 
-        pass
 
-
-    def call_learner(self, failed_action, env=None, transfer = False):
+    def call_learner(self, failed_action, actions_bump_up = None, new_item_in_the_world = None, env=None, transfer = False):
         # This function instantiates a RL learner to start finding interesting states to send 
         # to the planner
 
@@ -156,11 +161,19 @@ class Brain:
             env_id = 'NovelGridworld-Pogostick-v1'  # hardcoded for now. will add the argparser later.
             env = self.instantiate_env(env_id, None, False)  # make a new instance of the environment.
             obs = env.reset()
+        if actions_bump_up is not None:
+            self.actions_bump_up = actions_bump_up
+        else:
+            self.actions_bump_up = None
+        if new_item_in_the_world is not None:
+            self.new_item_in_world = new_item_in_the_world
+        else:
+            self.new_item_in_world = None
 
         if failed_action not in self.learned_policies_dict:
             # print ("")
             self.actions_bump_up.update({failed_action:env.actions_id[failed_action]}) # add failed actions in the list
-            self.learner = Learner(failed_action, env, self.actions_bump_up, CLEVER_EXPLORATION)
+            self.learner = Learner(failed_action, env, self.actions_bump_up, GUIDED_ACTION, self.new_item_in_world, GUIDED_POLICY)
             self.learned_policies_dict[failed_action] = self.learner # save the learner instance object to the learned poliocies dict.
             learned = self.learner.learn_policy(self.novelty_name) # learn to reach the goal state, if reached save the learned policy using novelty_name
             return learned
@@ -231,7 +244,8 @@ class Brain:
          ### O/P: it returns an instance of the environment.
         '''
         env = gym.make(env_id)
-        env.render()
+        if self.render:
+            env.render()
         env.unbreakable_items.add('crafting_table') # Make crafting table unbreakable for easy solving of task.
         env.reward_done = 1000
         env.reward_intermediate = 50
@@ -253,7 +267,7 @@ class Brain:
         sx = env.agent_location[1]
         sy = env.agent_location[0]
         so = env.agent_facing_str
-        print ("agent is at {}, {} and facing {}".format(sy, sx, so))
+        # print ("agent is at {}, {} and facing {}".format(sy, sx, so))
         binary_map = copy.deepcopy(env.map)
         binary_map[binary_map > 0] = 1
         grid_size = 1.0
@@ -269,7 +283,7 @@ class Brain:
         astar_operator = AStarOperator(name = None, goal_type=None, effect_set=None)
 
         loc2 = action.split(" ")[-1] # last value of the approach action gives the location to go to
-        print ("location to go to = {}".format(loc2))
+        # print ("location to go to = {}".format(loc2))
         gx, gy = sx, sy
 
         if loc2 in env.items:
@@ -306,7 +320,7 @@ class Brain:
 
         novelty_arg1 = 'wooden'
         novelty_arg2 = ''
-        difficulty = 'medium'
+        difficulty = ''
 
         env = inject_novelty(env, novelty_name, difficulty, novelty_arg1, novelty_arg2)
         return env
@@ -328,19 +342,20 @@ class Brain:
         '''
         rew_eps = 0
         count = 0
-        env.render()
+        if self.render:
+            env.render()
         matching = [s for s in plan if "approach" in s]
-        print ("matching = {}".format(matching))
+        # print ("matching = {}".format(matching))
         i = 0
         while (i < len(plan)):
-            print("Executing plan_step: ", plan[i])
+            # print("Executing plan_step: ", plan[i])
             sub_plan = []
             if plan[i] in self.failed_action_set and 'approach' not in plan[i]:#switch to rl
                 obs, reward, done, info = env.step(env.actions_id[plan[i]])
                 self.executed_learned_policy = True # weird Hack.
-                print ("Info = {}".format(info))
+                # print ("Info = {}".format(info))
                 if info['result']==False:
-                    print("\n Using the learned policy")
+                    # print("\n Using the learned policy")
                     self.executed_learned_policy = self.call_learner(failed_action = plan[i], env = env)
                 if not self.executed_learned_policy:
                     return False, None
@@ -348,11 +363,12 @@ class Brain:
                     i+=1
             elif plan[i] in self.failed_action_set and 'approach' in plan[i]:
                 sub_plan = self.run_motion_planner(env, plan[i])
-                print ("subplan = ",sub_plan)
+                # print ("subplan = ",sub_plan)
                 self.executed_learned_policy = True
                 # now execute the sub-plan
                 for j in range (len(sub_plan)):
-                    env.render()
+                    if self.render:
+                        env.render()
                     obs, reward, done, info = env.step(env.actions_id[sub_plan[j]])
                     if info['result']==False:
                         print("\n Using the learned policy")
@@ -366,11 +382,12 @@ class Brain:
             elif "approach" in plan[i] and plan[i] not in self.failed_action_set:
                 # call the motion planner here to generate the lower level actions
                 sub_plan = self.run_motion_planner(env, plan[i])
-                print ("subplan = ",sub_plan)
+                # print ("subplan = ",sub_plan)
                 i+=1
                 # now execute the sub-plan
                 for j in range (len(sub_plan)):
-                    env.render()
+                    if self.render:
+                        env.render()
                     obs, reward, done, info = env.step(env.actions_id[sub_plan[j]])
                     # print ("Info = {}".format(info))
                     if info['result']==False:
@@ -384,10 +401,11 @@ class Brain:
                             return True, None
             # go back to the planner's normal plan
             elif "approach" not in plan[i] and plan[i] not in self.failed_action_set:
-                print ("Executing {} action from main plan in the environment".format(env.actions_id[plan[i]]))
-                env.render()
+                # print ("Executing {} action from main plan in the environment".format(env.actions_id[plan[i]]))
+                if self.render:
+                    env.render()
                 obs, reward, done, info = env.step(env.actions_id[plan[i]])
-                print ("Info = {}".format(info))
+                # print ("Info = {}".format(info))
                 if info['result']==False:
                     self.failed_action_set[plan[i]] = None
                     return False, plan[i]
@@ -401,7 +419,9 @@ class Brain:
 
 if __name__ == '__main__':
     brain1 = Brain()
-    brain1.run_brain()
+    brain1.run_brain(novelty_name= 'axetobreakeasy') # Inject axetobreakeasy -> Let it learn and perform 1 episode
+    brain1.run_brain(novelty_name = 'axetobreakhard')
+    # Now inject axetobreakhard in the same instance of the class and then use the same policy
 
 
 

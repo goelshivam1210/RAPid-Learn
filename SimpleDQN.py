@@ -136,7 +136,7 @@ class SimpleDQN(object):
     
     # input: current state/observation
     # output: action index
-    def process_step(self, x, exploring):
+    def process_step(self, x, exploring, action = None):
 
         # feed input through network and get output action distribution and hidden layer
         aprob, h = self.policy_forward(x)
@@ -159,7 +159,7 @@ class SimpleDQN(object):
         #     # print ("aprob after bump up = ",sum(aprob[0]))
         
         # if exploring
-        if exploring == True:
+        if exploring == True and action is None:
             # greedy-e exploration
             rand_e = np.random.uniform()
             #print(rand_e)
@@ -177,6 +177,9 @@ class SimpleDQN(object):
                             # print ("aprob after bump up = ",sum(aprob[0]))
                             aprob[0] = [ 1.0/len(aprob[0]) for i in range(len(aprob[0]))]
                 #print("!")r
+        elif action is not None:
+            aprob[0] = [0 for i in range(len(aprob[0]))]
+            aprob[0][action] = 1
         
         
         if np.isnan(np.sum(aprob)):
