@@ -175,6 +175,7 @@ class BaselineExperiment(Experiment):
                     self.env.render()
                 if done:
                     obs = self.env.reset()
+                    done = False
                     break
 
         self.env.close()
