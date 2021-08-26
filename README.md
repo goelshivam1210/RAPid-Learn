@@ -55,4 +55,4 @@ In order to run experiments run the following script <BR>
   2. `'smart-exploration'`   
 
 Run <BR>
-``` python brain.py```
+``` python experiment.py```
