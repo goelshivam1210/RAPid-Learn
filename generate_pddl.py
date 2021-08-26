@@ -29,7 +29,7 @@ def generate_problem_pddl(pddl_dir,env, filename: str = "problem"):
     pddl = "\n".join([hder, objs, ints, goals, ")\n"])
     with open(filename, "w", encoding="utf-8") as f:
         f.write(str(pddl))
-        print(f"Problem PDDL written to {filename}.")
+        # print(f"Problem PDDL written to {filename}.")
 
 
 def _generate_header_prob():
@@ -77,7 +77,7 @@ def _generate_goals(env):
     for item in env.goal_item_to_craft:
         goal_list.append(item)
     goal = "".join(goal_list)
-    print("goal:", goal)
+    # print("goal:", goal)
     # goal = goal_list
     return "".join(["(:goal (>= (inventory ",goal,") 1))"])
  

@@ -3,45 +3,11 @@
 # email: shivam.goel@tufts.edu
 
 # This file is the Brain of RAPidL.
-# It is the main file that needs to be run to run the framework
+# It is the main file which talks to the planner, learner and the game instance.
 
 Important References
 
 '''
-
-# load an environment.
-# connect with the planning agent. 
-# generate the plan and peform it on the game engine. 
-# for some trials. It can be called warmup.
-##
-
-# insert a new environment in the middle (though a random number).
-# plan and see
-# call SPELer to investigate and the agent enters the exploration mode. 
-# learns to reach a state based upon the reward function generated according to the failed step in a plan.
-# #
-
-# instantiate the planning instance. callback here
-# instantiate a learner instance. callback here
-##
-
-# call a rl learner which communicates with the planner agent to 
-# find a plannable state. A threshld can be setup here and a hyperparameter 
-#   can be learned from here. an agent can also solve two things at once
-# learn a policy to learn to solve the RL problem
-
-# instantiate a operator_learner instance to convert the policy to a set of pre condition and post effect 
-# update the PDDL representation of the agent.
-
-# call the planner to plan and solve.
-###
-# inseet at least 5 new environments.
-### 
-# repeat the process above and add the functionality to control the number of iterations here.
-##
-# make a new filoe called experiment.py which runs this script accordingly.
-
-# import operator_generalization
 import os
 import re
 import sys
@@ -84,11 +50,11 @@ action_map = {'moveforward':'Forward',
 
 class Brain:
     
-    def __init__(self, render):
+    def __init__(self, novelty_name=None, render=False):
         # self.novelty_name = 'rubber_tree'
         self.learner = None
         self.failed_action_set = {}
-        self.novelty_name = None
+        self.novelty_name = novelty_name
         self.completed_trials = 0
         self.learned_policies_dict = {} # store failed action:learner_instance object
         self.render = render
@@ -98,6 +64,9 @@ class Brain:
             This is the driving function of this class.
             Call the environment and run the environment for x number of trials.
         '''
+        #### 
+        # THIS IS DEPRECATED
+        ###
         env_id = 'NovelGridworld-Pogostick-v1' # hardcoded for now. will add the argparser later.
         env = self.instantiate_env(env_id) # make a new instance of the environment.
         # self.novelty_name = novelty_name # to be used in future.
@@ -153,7 +122,8 @@ class Brain:
             # print("Needed to transfer: ", self.completed_trails)
 
 
-    def call_learner(self, failed_action, actions_bump_up = None, new_item_in_the_world = None, env=None, transfer = False):
+
+    def call_learner(self, failed_action, actions_bump_up = None, new_item_in_the_world = None, env=None, transfer = False, guided_action = False, guided_policy = False):
         # This function instantiates a RL learner to start finding interesting states to send 
         # to the planner
 
@@ -169,16 +139,18 @@ class Brain:
             self.new_item_in_world = new_item_in_the_world
         else:
             self.new_item_in_world = None
-
+            
+        self.current_failed_action = failed_action
         if failed_action not in self.learned_policies_dict:
             # print ("")
+            # print("Env observation shape:", env.observation_space.shape[0])
             self.actions_bump_up.update({failed_action:env.actions_id[failed_action]}) # add failed actions in the list
-            self.learner = Learner(failed_action, env, self.actions_bump_up, GUIDED_ACTION, self.new_item_in_world, GUIDED_POLICY)
+            self.learner = Learner(failed_action, env, self.actions_bump_up, guided_action, self.new_item_in_world, guided_policy)
             self.learned_policies_dict[failed_action] = self.learner # save the learner instance object to the learned poliocies dict.
-            learned = self.learner.learn_policy(self.novelty_name) # learn to reach the goal state, if reached save the learned policy using novelty_name
-            return learned
+            learned, data, data_eval = self.learner.learn_policy(self.novelty_name, self.learned_policies_dict, self.failed_action_set, transfer=transfer) # learn to reach the goal state, if reached save the learned policy using novelty_name
+            return learned, data, data_eval
         else:
-            print("\n Learner Using the learned policy")
+            # print("\n Learner Using the learned policy")
             played = self.learned_policies_dict[failed_action].play_learned_policy(env, novelty_name=self.novelty_name, operator_name=failed_action) # returns whether the policy was successfully played or not
             return played
 
@@ -202,7 +174,7 @@ class Brain:
         '''
 
         ff_plan = re.findall(r"\d+?: (.+)", output.lower()) # matches the string to find the plan bit from the ffmetric output.
-        print ("ffplan = {}".format(ff_plan))
+        # print ("ffplan = {}".format(ff_plan))
         action_set = []
         for i in range (len(ff_plan)):
             if ff_plan[i].split(" ")[0] == "approach":
@@ -247,8 +219,8 @@ class Brain:
         if self.render:
             env.render()
         env.unbreakable_items.add('crafting_table') # Make crafting table unbreakable for easy solving of task.
-        env.reward_done = 1000
-        env.reward_intermediate = 50
+        # env.reward_done = 1000
+        # env.reward_intermediate = 50
         if inject:
             env = inject_novelty(env, novelty_family[0], novelty_family[1], novelty_family[2], novelty_family[3]) 
         return env
@@ -313,16 +285,15 @@ class Brain:
         ## rx and ry have all the x, y points to use and         
         # a_star = AStarPlanner(ox, oy, grid_size, robot_radius)
     
-    def inject_novelty(self, novelty_name):
+    def inject_novelty(self, novelty_name, env=None):
 
-        env_id = 'NovelGridworld-Pogostick-v1'
-        env = gym.make(env_id)
+        if env is None:
+            env_id = 'NovelGridworld-Pogostick-v1'
+            env = gym.make(env_id)
+        else:
+            env = env
 
-        novelty_arg1 = 'wooden'
-        novelty_arg2 = ''
-        difficulty = ''
-
-        env = inject_novelty(env, novelty_name, difficulty, novelty_arg1, novelty_arg2)
+        env = inject_novelty(env, novelty_name)
         return env
 
     def generate_pddls(self, env):
@@ -334,6 +305,8 @@ class Brain:
     ### I/P environment object
     ### O/P returns pddl names if PDDL generated successfully, else returns false.
     '''
+
+
     def execute_plan(self, env, plan, obs):
         '''
         This function executes the plan on the domain step by step
@@ -358,7 +331,7 @@ class Brain:
                     # print("\n Using the learned policy")
                     self.executed_learned_policy = self.call_learner(failed_action = plan[i], env = env)
                 if not self.executed_learned_policy:
-                    return False, None
+                    return False, None, env.step_count
                 else:
                     i+=1
             elif plan[i] in self.failed_action_set and 'approach' in plan[i]:
@@ -376,7 +349,7 @@ class Brain:
                         if self.executed_learned_policy:
                             break
                 if not self.executed_learned_policy:
-                    return False, None
+                    return False, None, env.step_count
                 else:
                     i+=1
             elif "approach" in plan[i] and plan[i] not in self.failed_action_set:
@@ -392,13 +365,13 @@ class Brain:
                     # print ("Info = {}".format(info))
                     if info['result']==False:
                         self.failed_action_set[plan[i]] = None
-                        return False, plan[i]
+                        return False, plan[i], env.step_count
                     env.render()
                     rew_eps += reward
                     count += 1
                     if done:
                         if env.inventory_items_quantity[env.goal_item_to_craft] >= 1: # success measure(goal achieved)
-                            return True, None
+                            return True, None, env.step_count
             # go back to the planner's normal plan
             elif "approach" not in plan[i] and plan[i] not in self.failed_action_set:
                 # print ("Executing {} action from main plan in the environment".format(env.actions_id[plan[i]]))
@@ -408,14 +381,16 @@ class Brain:
                 # print ("Info = {}".format(info))
                 if info['result']==False:
                     self.failed_action_set[plan[i]] = None
-                    return False, plan[i]
+                    return False, plan[i], env.step_count
                 rew_eps += reward
                 count += 1
                 if done:
                     if env.inventory_items_quantity[env.goal_item_to_craft] >= 1: # success measure(goal achieved)
-                        return True, None
+                        return True, None, env.step_count
                 i+=1
-        return False, None
+        
+        return False, None, env.step_count
+
 
 if __name__ == '__main__':
     brain1 = Brain()

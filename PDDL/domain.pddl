@@ -34,6 +34,8 @@
     tree_log - breakable
     air - physobj
     tree_log - placeable
+    rubber_tree - physobj
+    wooden_axe - physobj
 )
 
 (:predicates

@@ -141,23 +141,6 @@ class SimpleDQN(object):
         # feed input through network and get output action distribution and hidden layer
         aprob, h = self.policy_forward(x)
         
-        # # print("actions to bump up = ", self.actions_to_be_bumped)
-        # if self.clever_exploration == True:
-        #     # Actions that need to be bumped up -> id, total number of actions that need to be bumped up and total actions in the env
-        #     # Find joint prob of actions that need to be bumped up (x) -> (1+x)/2
-        #     # Then, joint prob of actions to be bumped down: (1-x)/2
-        #     # aprob[0][i] if i is the action id that needs to be bumped up: (1+x)*x_i/2x
-        #     # aprob[0][i] if i is the action id NOT to be bumped up x_i/2
-        #     # print ("aprob =  ",sum(aprob[0]))
-        #     actions_to_bump_up_sum = sum(aprob[0][i] for i in list(self.actions_to_be_bumped.values()))
-        #     # actions_to_bump_down_sum = sum(aprob[0]) - actions_to_bump_up_sum
-        #     for i in range(len(aprob[0])): # bump up the probabilities
-        #         if i in list(self.actions_to_be_bumped.values()):
-        #             aprob[0][i] = ((1+actions_to_bump_up_sum)*(aprob[0][i]))/(2*actions_to_bump_up_sum) 
-        #         else:
-        #             aprob[0][i] = aprob[0][i]/2
-        #     # print ("aprob after bump up = ",sum(aprob[0]))
-        
         # if exploring
         if exploring == True and action is None:
             # greedy-e exploration

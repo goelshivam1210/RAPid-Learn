@@ -1,15 +1,3 @@
-
-# this file runs the experiments
-# Instantiate the environment.
-# run 20 trials pre novelty.
-
-# inject novelty after 20 trials
-# save the learning curves into a CSV
-# run 20 trials after learning.
-# inject another novelty, if needed.
-# repeat.
-
-# update the CSV while saving task success in all the trials.
 import time
 import math
 import sys
@@ -20,56 +8,52 @@ import argparse
 import copy
 import uuid
 
-
 import gym
+
 from brain import Brain
 
 ENV_ID = 'NovelGridworld-Pogostick-v1' # always remains the same.
+EPS_TO_EVAL = 5
 
 class Experiment:
     def __init__(self, args):
         self.hashid = uuid.uuid4().hex
-        # Make the env
-        # from arg take pre novety trials
-        # In for loop
-            # Dynamically generate problem pddl
-            # Get a plan
-            # Execute the plan
-        # In for loop
-            # Inject novelty (multiple if any)
-                # Dynamically generate problem pddl
-                # Get a plan
-                # Execute a plan until failure
-                # Go to learner
-                # Check if policy for the failed operator already exists
-                    # If yes, try to use the policy to accomplish the failed operator
-                    # If success, move ahead to the plan and complete the task
-                    # If failure, re-learn the imroved (difficult) novelty and save the policy
-                # Create a new learner object
-                # Learn and save the policy 
+        if args['learner']:
+            self.guided_action = True
+            self.guided_policy = True
+        else:
+            self.guided_action = False
+            self.guided_policy = False
+
+        header_train = ['Trial_no', 'Epsilon','Rho','Timesteps','Reward','Done']
+        header_test = ['Episode_no','Trial_no','Timesteps','Reward','Done']
+        self.generate_results(header_train,"train")
+        self.generate_results(header_test,"test")
+
+
         env = gym.make(ENV_ID)
-        brain1 = Brain(render = args['render'])
+        brain1 = Brain(novelty_name = args['novelty_name'], render = args['render'])
         # run the pre novelty trials 
         for pre_novelty_trial in range(args['trials_pre_novelty']):
             obs = env.reset()
             env.render() 
             brain1.generate_pddls(env)
             plan, game_action_set = brain1.call_planner("domain", "problem", env) # get a plan            
-            result, failed_action = brain1.execute_plan(env, game_action_set, obs)
+            result, failed_action, step_count = brain1.execute_plan(env, game_action_set, obs)
             # print ("result = {}  Failed Action =  {}".format(result, failed_action))
             if result == True:
-                self.save_results([1])
+                self.save_results([pre_novelty_trial, 0, 0, step_count,1000-step_count, 1],"train")
+                self.save_results([0, pre_novelty_trial, step_count,1000-step_count, 1],"test")
             else:
-                self.save_results([0])
+                self.save_results([pre_novelty_trial, 0, 0, step_count,-step_count, 0],"train")
+                self.save_results([0, pre_novelty_trial, step_count,1000-step_count, 1],"test")
 
         env_pre_items_quantity = copy.deepcopy(env.items_quantity)
         env_pre_actions = copy.deepcopy(env.actions_id)
         # inject novelty
         self.novelty_name = args['novelty_name']
         env = brain1.inject_novelty(novelty_name = self.novelty_name)
-        for novelty in args['multiple_novelty']:
-            env = brain1.inject_novelty(novelty_name = novelty)
-                
+
         self.new_item_in_world = None
         self.actions_bump_up = {}
         # get environment instances after novelty injection
@@ -92,42 +76,54 @@ class Experiment:
             brain1.generate_pddls(env)
             plan, game_action_set = brain1.call_planner("domain", "problem", env) # get a plan
             # print("game action set aftert the planner = {}".format(game_action_set))
-            result, failed_action = brain1.execute_plan(env, game_action_set, obs)
-            print ("result = {}  Failed Action =  {}".format(result, failed_action))
+            result, failed_action, step_count = brain1.execute_plan(env, game_action_set, obs)
+            # print ("result = {}  Failed Action =  {}".format(result, failed_action))
             if not result and failed_action is not None: # cases when the plan failed for the first time and the agent needs to learn a new action using RL
                 # print ("Instantiating a RL Learner to learn a new action to solve the impasse.")
-                self.learned = brain1.call_learner(failed_action=failed_action, actions_bump_up= self.actions_bump_up,new_item_in_the_world=self.new_item_in_world, env=env)
+                self.save_results([1, 0, 0, step_count, 0-step_count, 0],"train")
+                self.learned, data, data_eval = brain1.call_learner(failed_action=failed_action, actions_bump_up=self.actions_bump_up, new_item_in_the_world=self.new_item_in_world, env=env,transfer = args['transfer'], guided_action= self.guided_action, guided_policy=self.guided_policy)
                 if self.learned: # when the agent successfully learns a new action, it should now test it to re-run the environment.
-                    # print ("Agent succesfully learned a new action in the form of policy. Now resetting to test.")
+                    for i in range(len(data[0])):
+                        self.save_results([2+i, data[3][i], data[4][i], data[2][i], data[0][i], data[1][i]], "train")
+                    for i in range(len(data_eval[0])):
+                        self.save_results([data_eval[3][i],i%EPS_TO_EVAL, data_eval[2][i], data_eval[0][i], data_eval[1][i]], "test")
                     continue
+
             if not result and failed_action is None: # The agent used the learned policy and yet was unable to solve
-                print ("Trial - {}, Done - {}".format(post_novelty_trial, 0))
-                self.save_results([0])
+                # print ("Trial - {}, Done - {}".format(post_novelty_trial, 0))
+                self.save_results([post_novelty_trial, 0,0, step_count, 0-step_count, 0], "train")
+                self.save_results([data[3][i]+1,post_novelty_trial, step_count, 0-step_count, 0], "test")
                 continue
             if result:
-                self.save_results([1])
-                print ("Trial - {}, Done - {}".format(post_novelty_trial, 1))
-                # print("succesfully completed the task without any hassle!")
+                self.save_results([post_novelty_trial, 0,0, step_count, 1000-step_count, 1],"train")
+                self.save_results([data_eval[3][i]+1, post_novelty_trial, step_count, 1000-step_count, 1],"test")
+                # print ("Trial - {}, Done - {}".format(post_novelty_trial, 1))
+                # print("succesfully completed the task, without any hassle!")
 
-    def save_results (self, data):
+    def save_results (self, data, tag):
         os.makedirs("data" + os.sep + args['novelty_name']+args['learner']+self.hashid, exist_ok=True)
         # if tag == 'pre_novelty_trials':
-        db_file_name = "data" + os.sep+str(args['novelty_name'])+args['learner']+self.hashid+ os.sep+"results.csv"
+        db_file_name = "data" + os.sep+str(args['novelty_name'])+args['learner']+self.hashid+ os.sep+str(tag)+"results.csv"
         with open(db_file_name, 'a') as f: # append to the file created
             writer = csv.writer(f)
             writer.writerow(data)
+ 
+    def generate_results(self, headers, tag):
+        os.makedirs("data" + os.sep + args['novelty_name']+args['learner']+self.hashid, exist_ok=True)
+        db_file_name = "data" + os.sep+str(args['novelty_name'])+args['learner']+self.hashid+ os.sep+str(tag)+"results.csv"
+        with open(db_file_name, 'a') as f: # append to the file created
+            writer = csv.writer(f)
+            writer.writerow(headers)
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     # print("wjerlew")
-    ap.add_argument("-N", "--novelty_name", default='axetobreakeasy', help="Novelty to inject: #axetobreakeasy #axetobreakhard #firecraftingtableeasy #firecraftingtablehard #rubbertree", type=str)
-    ap.add_argument("-M", "--multiple_novelty", default = {},  help="Multiple Novelties dictionary input", type = dict)
+    ap.add_argument("-N", "--novelty_name", default='axetobreakeasy', help="Novelty to inject: #axetobreakeasy #axetobreakhard #firecraftingtableeasy #firecraftingtablehard #rubbertree #axefirecteasy", type=str)
     ap.add_argument("-TP", "--trials_pre_novelty", default= 1, help="Number of trials pre novelty", type=int)
-    ap.add_argument("-TN","--trials_post_learning", default = 10, help="Number of trials post recovering from novelty", type = int)
+    ap.add_argument("-TN","--trials_post_learning", default = 5, help="Number of trials post recovering from novelty", type = int)
     ap.add_argument("-P", "--print_every", default= 200, help="Number of epsiodes you want to print the results", type=int)
     ap.add_argument("-L", "--learner", default='epsilon-greedy', help="epsilon-greedy, smart-exploration", type=str)
+    ap.add_argument("-T", "--transfer", default=False, type=bool)
     ap.add_argument("-R", "--render", default=False, type=bool)
-
     args = vars(ap.parse_args())
-    print (args['render'])
     experiment1 = Experiment(args)
