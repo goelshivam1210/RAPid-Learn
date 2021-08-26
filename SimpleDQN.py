@@ -37,7 +37,7 @@ class SimpleDQN(object):
         self.init_model(random_seed)
         
         self.log_dir = 'policies'
-        self.env_id = 'PogoStick-v1-epsilon-exploration-clever'
+        self.env_id = 'PogoStick-v1'
         self.clever_exploration = clever_exploration_flag
         self.actions_to_be_bumped = actions_to_be_bumped
         self.all_actions_id = actions_id
@@ -149,6 +149,7 @@ class SimpleDQN(object):
             if rand_e < self._explore_eps:
                 # set all actions to be equal probability
                         if self.clever_exploration == True:
+                            # print ("actions = ", self.actions_to_be_bumped)
                             actions_to_bump_up_sum = sum(aprob[0][i] for i in list(self.actions_to_be_bumped.values()))
                             # actions_to_bump_down_sum = sum(aprob[0]) - actions_to_bump_up_sum
                             for i in range(len(aprob[0])): # bump up the probabilities
@@ -156,8 +157,9 @@ class SimpleDQN(object):
                                     aprob[0][i] = ((1+actions_to_bump_up_sum)*(aprob[0][i]))/(2*actions_to_bump_up_sum) 
                                 else:
                                     aprob[0][i] = aprob[0][i]/2
-                        else:
                             # print ("aprob after bump up = ",sum(aprob[0]))
+                            # print ("action probs = {}".format(aprob[0]))
+                        else:
                             aprob[0] = [ 1.0/len(aprob[0]) for i in range(len(aprob[0]))]
                 #print("!")r
         elif action is not None:
@@ -235,8 +237,10 @@ class SimpleDQN(object):
             self._grad_buffer[k] = np.zeros_like(v) # reset batch gradient buffer
 
     def save_model(self, novelty_name, operator_name):
-
-        experiment_file_name = str(novelty_name) + '_' + str(operator_name)
+        if self.clever_exploration:
+            experiment_file_name = str(novelty_name) + "_smart-exploration_" + str(operator_name) 
+        else:        
+            experiment_file_name = str(novelty_name) + '_epsilon-greedy_' + str(operator_name) 
         path_to_save = self.log_dir + os.sep + self.env_id + '_' + experiment_file_name + '.npz'
         np.savez(path_to_save, layer1 = self._model['W1'], layer2 = self._model['W2'])
         print("saved to: ", path_to_save)
