@@ -30,15 +30,29 @@ Switch to branch `RAPid-Learn`
 
 ### Run the code
 
-Brain.py consists of the main code. 
+<!-- Brain.py consists of the main code. 
 
-To run the RAPidLearn
+To run the RAPidLearn -->
  
- In order to insert novelty do the following:
+ <!-- In order to insert novelty do the following:
  Change the variable `self.novelty_name` value (line #100 in `brain.py`) to any of the following
  1. `'axetobreak'`
  2. `'firecraftingtable'`
- 3. `'rubbertree'`
+ 3. `'rubbertree'` -->
+
+In order to run experiments run the following script <BR>
+``` python experiment.py --TP <trials pre novelty> --N <novelty_name> --L <learner_name>```
+
+`novelty_name`
+ 1. `'axetobreakeasy'`
+ 2. `'axetobreakhard'`
+ 3. `'firecraftingtableeasy'`
+ 4. `'firecraftingtablehard'`
+ 5. `'rubbertree'`
+
+`learner_name` <BR>
+  1. `'epsilon-greedy'`
+  2. `'smart-exploration'`   
 
 Run <BR>
 ``` python brain.py```
