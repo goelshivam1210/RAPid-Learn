@@ -53,20 +53,23 @@ class RapidExperiment(Experiment):
     def __init__(self, args):
         super(RapidExperiment, self).__init__(args, self.HEADER_TRAIN, self.HEADER_TEST,
                                               args['novelty_name'] + args['learner'])
-        if args['learner']:
+        if args['learner'] == 'smart-exploration':
             self.guided_action = True
             self.guided_policy = True
         else:
             self.guided_action = False
             self.guided_policy = False
 
+        self.write_row_to_results(self.HEADER_TRAIN, "train")
+        self.write_row_to_results(self.HEADER_TEST, "test")
+
     def run(self):
-        brain1 = Brain(novelty_name=args['novelty_name'], render=args['render'])
-        # run the pre novelty t`rials
+        self.env.reset()
+        brain1 = Brain(novelty_name=self.novelty_name, render=self.render)
+        # run the pre novelty trials
         for pre_novelty_trial in range(self.trials_pre_novelty):
             obs = self.env.reset()
-            if self.render:
-                self.env.render()
+            self.env.render()
             brain1.generate_pddls(self.env)
             plan, game_action_set = brain1.call_planner("domain", "problem", self.env)  # get a plan
             result, failed_action, step_count = brain1.execute_plan(self.env, game_action_set, obs)
@@ -81,12 +84,13 @@ class RapidExperiment(Experiment):
         env_pre_items_quantity = copy.deepcopy(self.env.items_quantity)
         env_pre_actions = copy.deepcopy(self.env.actions_id)
         # inject novelty
-        self.env = brain1.inject_novelty(novelty_name=self.novelty_name)
-
+        self.env = brain1.inject_novelty(novelty_name=self.novelty_name, env=self.env)
+        self.env.reset()  # this is the key
         self.new_item_in_world = None
         self.actions_bump_up = {}
         # get environment instances after novelty injection
         env_post_items_quantity = copy.deepcopy(self.env.items_quantity)
+        # print("Post items quant: ", env.items_quantity)
         env_post_actions = copy.deepcopy(self.env.actions_id)
 
         if len(env_post_items_quantity.keys() - env_pre_items_quantity.keys()) > 0:
@@ -98,11 +102,13 @@ class RapidExperiment(Experiment):
 
         for action in env_post_actions.keys() - env_pre_actions.keys():  # add new actions
             self.actions_bump_up.update({action: env_post_actions[action]})
+            # print ("new_item_in_the_world = ", self.new_item_in_world)
+        brain1.generate_pddls(self.env, self.new_item_in_world)  # update the domain file
 
-            # now we run post novelty trials
+        # now we run post novelty trials
         for post_novelty_trial in range(self.trials_post_learning):
             obs = self.env.reset()
-            brain1.generate_pddls(self.env)
+            # brain1.generate_pddls(env, self.new_item_in_world)
             plan, game_action_set = brain1.call_planner("domain", "problem", self.env)  # get a plan
             # print("game action set aftert the planner = {}".format(game_action_set))
             result, failed_action, step_count = brain1.execute_plan(self.env, game_action_set, obs)
@@ -117,24 +123,23 @@ class RapidExperiment(Experiment):
                                                                     guided_action=self.guided_action,
                                                                     guided_policy=self.guided_policy)
                 if self.learned:  # when the agent successfully learns a new action, it should now test it to re-run the environment.
+                    # data_3 = data[3][-1]
                     for i in range(len(data[0])):
                         self.write_row_to_results([2 + i, data[3][i], data[4][i], data[2][i], data[0][i], data[1][i]], "train")
-                    for i in range(len(data_eval[0])):
+                    # data_3_eval = data[3][-1]
+                    for j in range(len(data_eval[0])):
                         self.write_row_to_results(
                             [data_eval[3][i], i % EPS_TO_EVAL, data_eval[2][i], data_eval[0][i], data_eval[1][i]],
                             "test")
                     continue
 
             if not result and failed_action is None:  # The agent used the learned policy and yet was unable to solve
-                # print ("Trial - {}, Done - {}".format(post_novelty_trial, 0))
                 self.write_row_to_results([post_novelty_trial, 0, 0, step_count, 0 - step_count, 0], "train")
                 self.write_row_to_results([data[3][i] + 1, post_novelty_trial, step_count, 0 - step_count, 0], "test")
                 continue
             if result:
                 self.write_row_to_results([post_novelty_trial, 0, 0, step_count, 1000 - step_count, 1], "train")
-                self.write_row_to_results([data_eval[3][i] + 1, post_novelty_trial, step_count, 1000 - step_count, 1], "test")
-                # print ("Trial - {}, Done - {}".format(post_novelty_trial, 1))
-                # print("succesfully completed the task, without any hassle!")
+                self.write_row_to_results([data_eval[3][j] + 1, post_novelty_trial, step_count, 1000 - step_count, 1], "test")
 
 
 class BaselineExperiment(Experiment):
