@@ -129,9 +129,9 @@ class RapidExperiment(Experiment):
                     # data_3_eval = data[3][-1]
                     for j in range(len(data_eval[0])):
                         self.write_row_to_results(
-                            [data_eval[3][i], i % EPS_TO_EVAL, data_eval[2][i], data_eval[0][i], data_eval[1][i]],
+                            [data_eval[3][j], j % EPS_TO_EVAL, data_eval[2][j], data_eval[0][j], data_eval[1][j]],
                             "test")
-                    continue
+                    continue 
 
             if not result and failed_action is None:  # The agent used the learned policy and yet was unable to solve
                 self.write_row_to_results([post_novelty_trial, 0, 0, step_count, 0 - step_count, 0], "train")
@@ -164,7 +164,7 @@ if __name__ == "__main__":
     ap.add_argument("-P", "--print_every", default=200, help="Number of epsiodes you want to print the results",
                     type=int)
     ap.add_argument("-L", "--learner", default='epsilon-greedy', help="epsilon-greedy, smart-exploration", type=str)
-    ap.add_argument("-T", "--transfer", default=False, type=bool)
+    ap.add_argument("-T", "--transfer", default=None, type=str)
     ap.add_argument("-R", "--render", default=False, type=bool)
     args = vars(ap.parse_args())
     experiment1 = RapidExperiment(args)

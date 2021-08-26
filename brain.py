@@ -125,9 +125,7 @@ class Brain:
             # print("succesfully completed the task without any hassle!")
             # print("Needed to transfer: ", self.completed_trails)
 
-
-
-    def call_learner(self, failed_action, actions_bump_up = None, new_item_in_the_world = None, env=None, transfer = False, guided_action = False, guided_policy = False):
+    def call_learner(self, failed_action, actions_bump_up = None, new_item_in_the_world = None, env=None, transfer = None, guided_action = False, guided_policy = False):
         # This function instantiates a RL learner to start finding interesting states to send 
         # to the planner
 

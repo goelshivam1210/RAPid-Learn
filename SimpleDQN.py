@@ -245,9 +245,14 @@ class SimpleDQN(object):
         np.savez(path_to_save, layer1 = self._model['W1'], layer2 = self._model['W2'])
         print("saved to: ", path_to_save)
 
-    def load_model(self, novelty_name, operator_name):
-
-        experiment_file_name = str(novelty_name) + '_' + str(operator_name)
+    def load_model(self, novelty_name, operator_name, transfer_from = None):
+        if transfer_from is not None:
+            novelty_name = transfer_from
+        if self.clever_exploration:
+            experiment_file_name = str(novelty_name) + "_smart-exploration_" + str(operator_name) 
+        else:        
+            experiment_file_name = str(novelty_name) + '_epsilon-greedy_' + str(operator_name) 
+        # experiment_file_name = str(novelty_name) + '_' + str(operator_name)
         path_to_load = self.log_dir + os.sep + self.env_id + '_' + experiment_file_name + '.npz'
         data = np.load(path_to_load)
         self._model['W1'] = data['layer1']

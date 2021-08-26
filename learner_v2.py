@@ -123,7 +123,7 @@ class Learner:
         self.impermissible_reason = None
         self.trial_time = 300
 
-    def learn_policy(self, novelty_name, learned_policies_dict, failed_action_set, transfer=False):
+    def learn_policy(self, novelty_name, learned_policies_dict, failed_action_set, transfer=None):
         self.reset_trial_vars()
         self.novelty_name = novelty_name
         self.learned_policies_dict = learned_policies_dict
@@ -152,7 +152,7 @@ class Learner:
             return False, data, data_eval
 
     # Run episodes for certain time steps.
-    def run_episode(self, transfer=False, novelty_name=None):
+    def run_episode(self, transfer=None, novelty_name=None):
         done = False
         obs = self.env.get_observation()
         info = self.env.get_info()
@@ -161,9 +161,9 @@ class Learner:
             'plannable':0,
             'unplannable':1
         }
-        if transfer: # here we transfer the weights to jumpstart the agent
+        if transfer is not None: # here we transfer the weights to jumpstart the agent
             print("Loading the transferred policy")
-            self.learning_agent.load_model(novelty_name = novelty_name, operator_name = self.failed_action)
+            self.learning_agent.load_model(novelty_name = novelty_name, operator_name = self.failed_action, transfer_from = transfer)
 
         # episode_timesteps = 0
         for episode in range(MAX_EPISODES):
@@ -201,7 +201,7 @@ class Learner:
             # Get location of novel item -> Run motion planner to go to that location
             # Store state, action and reward
             if self.new_item_in_the_world is not None and self.guided_policy:
-                time.sleep(20)
+                # time.sleep(20)
                 rand_e = np.random.uniform() # use the policy with some rho constant probability.
                 if rand_e < self.rho:
                     policies = []
@@ -216,7 +216,7 @@ class Learner:
                         obs, reward, done, info = self.step_env(orig_obs = obs, info = info, done = done, action = self.env.actions_id[policy[j]])
                         episode_timesteps += 1
                         rew = -1
-                        self.leaning_agent.give_reward(rew)
+                        self.learning_agent.give_reward(rew)
                         reward_per_episode += rew
                         done = False
 
