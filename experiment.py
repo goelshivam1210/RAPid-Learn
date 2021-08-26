@@ -20,9 +20,14 @@ EPS_TO_EVAL = 5
 class Experiment(ABC):
     DATA_DIR = 'data'
 
-    def __init__(self, args, header_train, header_test, extra_run_ids):
+    def __init__(self, args, header_train, header_test, extra_run_ids=''):
         self.hashid = uuid.uuid4().hex
         self.results_dir = Experiment.DATA_DIR + os.sep + extra_run_ids + self.hashid
+        self.trials_pre_novelty = args['trials_pre_novelty']
+        self.trials_post_learning = args['trials_post_learning']
+        self.novelty_name = args['novelty_name']
+        self.render = args['render']
+
         os.makedirs(self.results_dir, exist_ok=True)
 
         self.write_row_to_results(header_train, "train")
@@ -58,9 +63,10 @@ class RapidExperiment(Experiment):
     def run(self):
         brain1 = Brain(novelty_name=args['novelty_name'], render=args['render'])
         # run the pre novelty t`rials
-        for pre_novelty_trial in range(args['trials_pre_novelty']):
+        for pre_novelty_trial in range(self.trials_pre_novelty):
             obs = self.env.reset()
-            self.env.render()
+            if self.render:
+                self.env.render()
             brain1.generate_pddls(self.env)
             plan, game_action_set = brain1.call_planner("domain", "problem", self.env)  # get a plan
             result, failed_action, step_count = brain1.execute_plan(self.env, game_action_set, obs)
@@ -75,7 +81,6 @@ class RapidExperiment(Experiment):
         env_pre_items_quantity = copy.deepcopy(self.env.items_quantity)
         env_pre_actions = copy.deepcopy(self.env.actions_id)
         # inject novelty
-        self.novelty_name = args['novelty_name']
         self.env = brain1.inject_novelty(novelty_name=self.novelty_name)
 
         self.new_item_in_world = None
@@ -95,7 +100,7 @@ class RapidExperiment(Experiment):
             self.actions_bump_up.update({action: env_post_actions[action]})
 
             # now we run post novelty trials
-        for post_novelty_trial in range(args['trials_post_learning']):
+        for post_novelty_trial in range(self.trials_post_learning):
             obs = self.env.reset()
             brain1.generate_pddls(self.env)
             plan, game_action_set = brain1.call_planner("domain", "problem", self.env)  # get a plan
