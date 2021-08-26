@@ -10,6 +10,7 @@ import uuid
 from abc import abstractmethod, ABC
 
 import gym
+from gym.wrappers.record_episode_statistics import RecordEpisodeStatistics
 
 from brain import Brain
 from baselines.wrappers import *
@@ -139,15 +140,18 @@ class RapidExperiment(Experiment):
 
 
 class BaselineExperiment(Experiment):
-    HEADER_TRAIN = ['Trial_no', 'Timesteps', 'Reward', 'Done']
-    HEADER_TEST = ['Episode_no', 'Trial_no', 'Timesteps', 'Reward', 'Done']
+    HEADER_TRAIN = ['episode', 'timesteps', 'reward', 'success']
+    HEADER_TEST = ['trial', 'episode', 'timesteps', 'reward', 'success']
     MAX_TIMESTEPS_PER_EPISODE = 500
     TRAIN_EPISODES = 10
 
     def __init__(self, args):
         super(BaselineExperiment, self).__init__(args, self.HEADER_TRAIN, self.HEADER_TEST)
         self.env = gym.make('NovelGridworld-Pogostick-v1')
+
+        # The order of the wrappers seems to be important
         self.env = EpisodicWrapper(self.env, self.MAX_TIMESTEPS_PER_EPISODE)
+        self.env = RecordEpisodeStatistics(self.env)
         self.env = RewardShaping(self.env)
 
         from stable_baselines3.common.env_checker import check_env
@@ -167,15 +171,18 @@ class BaselineExperiment(Experiment):
         obs = self.env.reset()
         done = False
 
-        for i in range(self.trials_pre_novelty):
+        for episode in range(self.trials_pre_novelty):
             while not done:
                 action, _states = model.predict(obs)
                 obs, reward, done, info = self.env.step(action)
                 if self.render:
                     self.env.render()
                 if done:
+                    success = self.env.last_done
                     obs = self.env.reset()
                     done = False
+                    episode_stats = info['episode']
+                    self.write_row_to_results(['na', episode, episode_stats['l'], episode_stats['r'], success], 'test')
                     break
 
         self.env.close()
