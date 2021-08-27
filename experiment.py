@@ -120,6 +120,7 @@ class RapidExperiment(Experiment):
                                                                     actions_bump_up=self.actions_bump_up,
                                                                     new_item_in_the_world=self.new_item_in_world,
                                                                     env=self.env, transfer=args['transfer'],
+                                                                    plan = game_action_set,
                                                                     guided_action=self.guided_action,
                                                                     guided_policy=self.guided_policy)
                 if self.learned:  # when the agent successfully learns a new action, it should now test it to re-run the environment.

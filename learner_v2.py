@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
  
 from brain import *
 from generate_pddl import *
-from NGLearner_util_v2 import get_create_success_func_from_predicate_set
+from NGLearner_util_v2 import get_create_success_func_from_predicate_set, RewardFunctionGenerator
 from generate_pddl import *
 from SimpleDQN import *
 from utils import AStarOperator, AStarPlanner
@@ -48,7 +48,7 @@ action_map = {'moveforward':'Forward',
         'select': 'Select'}
 
 class Learner:
-    def __init__(self, failed_action, env, actions_bump_up, action_biasing = False,\
+    def __init__(self, failed_action, env, plan, actions_bump_up, action_biasing = False,\
                  new_item_in_the_world=None, guided_policy=False, novelty_flag=False) -> None:
 
         self.env_to_reset = copy.deepcopy(env) # copy the complete environment instance
@@ -84,6 +84,11 @@ class Learner:
         self.desired_effects = operator_map[failed_action]
         print("desired effects: ", self.desired_effects)
         self.create_success_func = get_create_success_func_from_predicate_set(self.desired_effects)
+        if self.failed_action == "Break tree_log":
+            self.reward_funcs = RewardFunctionGenerator(plan, self.failed_action_break)
+        else:
+            self.reward_funcs = RewardFunctionGenerator(plan, self.failed_action)
+
         self.success_func = None
         # print ("env.observationspace.shape ", env.observation_space.shape[0])
 
@@ -180,7 +185,9 @@ class Learner:
             obs = self.env.reset(reset_from_failed_state = True, env_instance = copy.deepcopy(self.env_to_reset))
             info = self.env.get_info()
             self.success_func = self.create_success_func(obs,info) # self.success_func returns a boolean indicating whether the desired effects were met
-
+            self.reward_funcs.store_init_info(info) # Reward success func storing the initial info
+            
+            # evaluating 
             if episode > 0 and episode % EVAL_INTERVAL == 0: # lets evaluate the current learnt policy, used for plot generation.
                 for episode_per_eval in range(EPS_TO_EVAL):
                     # print ("evaluating {} episode ".format(episode_per_eval))
@@ -226,7 +233,8 @@ class Learner:
                 # time.sleep(0.3)
                 episode_timesteps += 1
                 self.is_success_met = self.success_func(obs,info) # self.success_func returns a boolean indicating whether the desired effects were met
-                if self.is_success_met:    
+                self.reward_success_met = self.reward_funcs.check_success(info)
+                if self.is_success_met or self.reward_success_met:    
                     done = True
                     rew = 1000
                 else:
@@ -313,30 +321,36 @@ class Learner:
         self.learning_agent.load_model(novelty_name=novelty_name, operator_name=self.failed_action)
         episode_timestep = 0
         self.success_func = self.create_success_func(obs,info) # self.success_func returns a boolean indicating whether the desired effects were met
+        self.reward_funcs.store_init_info(info) 
 
         while True:
             
             obs, action, done, info = self.step_env(orig_obs=obs, info=info, done=done)
             # self.env.render()
             self.is_success_met = self.success_func(self.env.get_observation(),self.env.get_info()) # self.success_func returns a boolean indicating whether the desired effects were met
+            self.reward_success_met = self.reward_funcs.check_success(info)
+
             episode_timestep += 1 
-            if self.is_success_met:
+            if self.is_success_met or self.reward_success_met:
                 done = True
-                # print("inventory: ", self.env.inventory_items_quantity)
-                # time.sleep(20)
-                return True
+                if self.reward_success_met:
+                    return True, True
+                else:
+                    return True, False
             if episode_timestep >= 300:
                 done = False
-                return False
+                return False, False
 
     def evaluate_policy(self):
-        # evaluate the policy while learninf.    
+        # evaluate the policy while learning.    
         obs = self.env.reset()
         # self.env.render()
         # time.sleep(3)
         generate_prob_pddl("PDDL", self.env)
         plan, game_action_set = self.call_planner("domain", "problem", self.env) # get a plan
         is_success = self.execute_plan_before_learnt(game_action_set)
+        if is_success:
+            print("plan = ",game_action_set)
         return self.env.step_count, is_success 
 
     def execute_plan_before_learnt(self, plan):
@@ -350,23 +364,41 @@ class Learner:
                 obs, reward, done, info = self.env.step(self.env.actions_id[plan[i]])
                 if info['result']==False:
                     # print ("I am playing policy")
-                    result = self.play_policy() # this is called in learner_v2 since we want to use the learner instance
+                    result, is_reward_met = self.play_policy() # this is called in learner_v2 since we want to use the learner instance
                     if result == False:
                         return False
                     else:
                         i+=1
+                        if is_reward_met: # When the result is true, we check if the success was met through the reward_func, and if yes, remove the actions from plan that generate the req obj
+                            for action_to_remove in self.reward_funcs.actions_that_generate_objects_required: # now we remove the actions for those objects
+                                try:
+                                    while True:
+                                        plan.remove(action_to_remove)
+                                except ValueError:
+                                    pass                            
                 else:
                     i+=1
                 # play the policy that is being learned (No need to load model).
+                # 2 novelties -> Scrape plank and FCT easy
+                # 1: break tree log -> Scrape plank break tree log
             elif plan[i] is not self.failed_action and plan[i] in self.failed_action_set: # cases when we already have a learned policy for the action.
                 #Load the other learned policy and play
                 obs, reward, done, info = self.env.step(self.env.actions_id[plan[i]])
                 if info['result']==False:
-                    played = self.learned_policies_dict[plan[i]].play_learned_policy(self.env, novelty_name=self.novelty_name, operator_name=plan[i]) # returns whether the policy was successfully played or not            
+                    played, is_reward_met = self.learned_policies_dict[plan[i]].play_learned_policy(self.env, novelty_name=self.novelty_name, operator_name=plan[i]) # returns whether the policy was successfully played or not            
                     if played == False:
                         return False
                     else:
                         i+=1
+                        if is_reward_met: # When the result is true, we check if the success was met through the reward_func, and if yes, remove the actions from plan that generate the req obj
+                            for action_to_remove in self.reward_funcs.actions_that_generate_objects_required: # now we remove the actions for those objects
+                                try:
+                                    while True:
+                                        plan.remove(action_to_remove)
+                                except ValueError:
+                                    pass
+                else:
+                    i += 1                                                    
             elif 'approach' in plan[i]:
                 sub_plan = self.run_motion_planner(plan[i])
                 # print ("subplan", sub_plan)
@@ -455,21 +487,25 @@ class Learner:
         # self.learning_agent.load_model(novelty_name=novelty_name, operator_name=self.failed_action)
         episode_timestep = 0
         self.success_func = self.create_success_func(obs,info) # self.success_func returns a boolean indicating whether the desired effects were met
+        self.reward_funcs.store_init_info(info) 
         # print ("")
         while True:            
             obs, action, done, info = self.step_env(orig_obs=obs, info=info, done=done)
             # self.env.render()
             self.is_success_met = self.success_func(self.env.get_observation(),self.env.get_info()) # self.success_func returns a boolean indicating whether the desired effects were met
+            self.reward_success_met = self.reward_funcs.check_success(self.env.get_info())
+
             # print ("self.is_success_met = ", self.is_success_met)
             episode_timestep += 1
-            if self.is_success_met:
+            if self.is_success_met or self.reward_success_met:
                 done = True
-                # print("inventory: ", self.env.inventory_items_quantity)
-                # time.sleep(20)
-                return True
+                if self.reward_success_met:
+                    return True, True
+                else:
+                    return True, False
             if episode_timestep >= 300:
                 done = False
-                return False
+                return False, False
 
     def run_motion_planner(self, action):
         # Instantiation of the AStar Planner with the 

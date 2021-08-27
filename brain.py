@@ -59,6 +59,8 @@ class Brain:
         self.learned_policies_dict = {} # store failed action:learner_instance object
         self.render = render
         self.actions_bump_up = {}
+        self.plan = []
+        # self.actions_to_remove = [] # these actions are the ones that the planner doesnt need. they are updated by the learner.
 
     def run_brain(self, env_id=None, novelty_name=None, num_trails_pre_novelty=None, num_trials_post_learning=None, inject_multiple = False):
         '''        
@@ -125,7 +127,7 @@ class Brain:
             # print("succesfully completed the task without any hassle!")
             # print("Needed to transfer: ", self.completed_trails)
 
-    def call_learner(self, failed_action, actions_bump_up = None, new_item_in_the_world = None, env=None, transfer = None, guided_action = False, guided_policy = False):
+    def call_learner(self, failed_action, plan, actions_bump_up = None, new_item_in_the_world = None, env=None, transfer = None, guided_action = False, guided_policy = False):
         # This function instantiates a RL learner to start finding interesting states to send 
         # to the planner
 
@@ -147,13 +149,20 @@ class Brain:
             # print ("")
             # print("Env observation shape:", env.observation_space.shape[0])
             self.actions_bump_up.update({failed_action:env.actions_id[failed_action]}) # add failed actions in the list
-            self.learner = Learner(failed_action, env, self.actions_bump_up, guided_action, self.new_item_in_world, guided_policy)
+            self.learner = Learner(failed_action, env, plan, self.actions_bump_up, guided_action, self.new_item_in_world, guided_policy)
             self.learned_policies_dict[failed_action] = self.learner # save the learner instance object to the learned poliocies dict.
             learned, data, data_eval = self.learner.learn_policy(self.novelty_name, self.learned_policies_dict, self.failed_action_set, transfer=transfer) # learn to reach the goal state, if reached save the learned policy using novelty_name
             return learned, data, data_eval
         else:
             # print("\n Learner Using the learned policy")
-            played = self.learned_policies_dict[failed_action].play_learned_policy(env, novelty_name=self.novelty_name, operator_name=failed_action) # returns whether the policy was successfully played or not
+            played, is_reward_met = self.learned_policies_dict[failed_action].play_learned_policy(env, novelty_name=self.novelty_name, operator_name=failed_action) # returns whether the policy was successfully played or not
+            if is_reward_met:
+                for action_to_remove in self.learned_policies_dict[failed_action].reward_funcs.actions_that_generate_objects_required: # now we remove the actions for those objects
+                    try:
+                        while True:
+                            self.game_action_set.remove(action_to_remove)
+                    except ValueError:
+                        pass                                        
             return played
 
     def call_planner(self, domain, problem, env):
@@ -165,8 +174,12 @@ class Brain:
     
         run_script = "Metric-FF-v2.1/./ff -o "+self.pddl_dir+os.sep+domain+".pddl -f "+self.pddl_dir+os.sep+problem+".pddl -s 0"
         output = subprocess.getoutput(run_script)
-        plan, game_action_set = self._output_to_plan(output, env)
-        return plan, game_action_set
+        plan, self.game_action_set = self._output_to_plan(output, env)
+        # catch here and remove the actions from the plan
+        # if self.novelty_name is not None and self.learner.failed_action_set is not None:
+        #     for x in self.actions_to_remove:
+        #         game_action_set.remove(x)
+        return plan, self.game_action_set
 
     def _output_to_plan(self, output, env):
         '''
@@ -320,27 +333,29 @@ class Brain:
         '''
         rew_eps = 0
         count = 0
+        self.plan = plan
         if self.render:
             env.render()
         matching = [s for s in plan if "approach" in s]
         # print ("matching = {}".format(matching))
         i = 0
-        while (i < len(plan)):
+        while (i < len(self.plan)):
             # print("Executing plan_step: ", plan[i])
             sub_plan = []
-            if plan[i] in self.failed_action_set and 'approach' not in plan[i]:#switch to rl
-                obs, reward, done, info = env.step(env.actions_id[plan[i]])
+            if self.plan[i] in self.failed_action_set and 'approach' not in self.plan[i]:#switch to rl
+                obs, reward, done, info = env.step(env.actions_id[self.plan[i]])
                 self.executed_learned_policy = True # weird Hack.
                 # print ("Info = {}".format(info))
                 if info['result']==False:
                     # print("\n Using the learned policy")
-                    self.executed_learned_policy = self.call_learner(failed_action = plan[i], env = env)
+                    self.executed_learned_policy = self.call_learner(failed_action = self.plan[i], env = env, plan=self.plan)
+                    
                 if not self.executed_learned_policy:
                     return False, None, env.step_count
                 else:
                     i+=1
-            elif plan[i] in self.failed_action_set and 'approach' in plan[i]:
-                sub_plan = self.run_motion_planner(env, plan[i])
+            elif self.plan[i] in self.failed_action_set and 'approach' in self.plan[i]:
+                sub_plan = self.run_motion_planner(env, self.plan[i])
                 # print ("subplan = ",sub_plan)
                 self.executed_learned_policy = True
                 # now execute the sub-plan
@@ -350,16 +365,16 @@ class Brain:
                     obs, reward, done, info = env.step(env.actions_id[sub_plan[j]])
                     if info['result']==False:
                         print("\n Using the learned policy")
-                        self.executed_learned_policy = self.call_learner(failed_action = plan[i], env = env)
+                        self.executed_learned_policy = self.call_learner(failed_action = self.plan[i], env = env, plan=self.plan)
                         if self.executed_learned_policy:
                             break
                 if not self.executed_learned_policy:
                     return False, None, env.step_count
                 else:
                     i+=1
-            elif "approach" in plan[i] and plan[i] not in self.failed_action_set:
+            elif "approach" in self.plan[i] and self.plan[i] not in self.failed_action_set:
                 # call the motion planner here to generate the lower level actions
-                sub_plan = self.run_motion_planner(env, plan[i])
+                sub_plan = self.run_motion_planner(env, self.plan[i])
                 # print ("subplan = ",sub_plan)
                 i+=1
                 # now execute the sub-plan
@@ -369,8 +384,8 @@ class Brain:
                     obs, reward, done, info = env.step(env.actions_id[sub_plan[j]])
                     # print ("Info = {}".format(info))
                     if info['result']==False:
-                        self.failed_action_set[plan[i]] = None
-                        return False, plan[i], env.step_count
+                        self.failed_action_set[self.plan[i]] = None
+                        return False, self.plan[i], env.step_count
                     env.render()
                     rew_eps += reward
                     count += 1
@@ -378,15 +393,15 @@ class Brain:
                         if env.inventory_items_quantity[env.goal_item_to_craft] >= 1: # success measure(goal achieved)
                             return True, None, env.step_count
             # go back to the planner's normal plan
-            elif "approach" not in plan[i] and plan[i] not in self.failed_action_set:
+            elif "approach" not in self.plan[i] and self.plan[i] not in self.failed_action_set:
                 # print ("Executing {} action from main plan in the environment".format(env.actions_id[plan[i]]))
                 if self.render:
                     env.render()
-                obs, reward, done, info = env.step(env.actions_id[plan[i]])
+                obs, reward, done, info = env.step(env.actions_id[self.plan[i]])
                 # print ("Info = {}".format(info))
                 if info['result']==False:
-                    self.failed_action_set[plan[i]] = None
-                    return False, plan[i], env.step_count
+                    self.failed_action_set[self.plan[i]] = None
+                    return False, self.plan[i], env.step_count
                 rew_eps += reward
                 count += 1
                 if done:

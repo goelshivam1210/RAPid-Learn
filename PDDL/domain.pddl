@@ -4,6 +4,7 @@
 
 
 (:types
+	rubber_tree - physobj
     plank - breakable
     plank - placeable
     wall - physobj
@@ -74,34 +75,6 @@
     )
 )
 
-(:action deselect
-    :parameters    (?physobj01 - physobj )
-    :precondition  (and
-        (>= ( inventory ?physobj01) 1)
-        (holding ?physobj01)
-    )
-    :effect  (and
-        (not (holding ?physobj01))
-        (holding air)
-    )
-)
-
-(:action pickup
-    :parameters    (?physobj01 - physobj ?physobj02 - physobj )
-    :precondition  (and
-        (floating ?physobj01)
-        (facing ?physobj02)
-    )
-    :effect  (and
-        (not (floating ?physobj01))
-        (not (facing ?physobj01))
-        (not (facing ?physobj02))
-        (facing air)
-        (increase ( inventory ?physobj01) 1)
-        (decrease ( world ?physobj01) 1)
-    )
-)
-
 (:action craftplank
     :parameters    ()
     :precondition  (>= ( inventory tree_log) 1)
@@ -111,33 +84,18 @@
     )
 )
 
-(:action place
-    :parameters    (?placeable01 - placeable )
-    :precondition  (and
-        (facing air)
-        (>= ( inventory ?placeable01) 1)
-    )
-    :effect  (and
-        (facing ?placeable01)
-        (not (facing air))
-        (increase ( world ?placeable01) 1)
-        (decrease ( inventory ?placeable01) 1)
-        (decrease ( world air) 1)
-    )
-)
-
 (:action break
-    :parameters    (?breakable01 - breakable )
+    :parameters    ()
     :precondition  (and
-        (facing ?breakable01)
-        (not (floating ?breakable01))
+        (facing tree_log)
+        (not (floating tree_log))
     )
     :effect  (and
         (facing air)
-        (not (facing ?breakable01))
-        (increase ( inventory ?breakable01) 1)
+        (not (facing tree_log))
+        (increase ( inventory tree_log) 1)
         (increase ( world air) 1)
-        (decrease ( world ?breakable01) 1)
+        (decrease ( world tree_log) 1)
     )
 )
 
@@ -158,29 +116,9 @@
         (holding tree_tap)
     )
     :effect  (and
-        ; (not (facing air))
-        ; (facing tree_tap)
         (increase ( inventory rubber) 1)
-        ; (decrease ( inventory tree_tap) 1)
-        ; (decrease ( world air) 1)
-        ; (increase ( world tree_tap) 1)
     )
 )
-
-; (:action placetreetap
-;     :parameters    ()
-;     :precondition  (and
-;         (>= ( inventory tree_tap) 1)
-;         (facing air)
-;         ()
-;     )
-;     :effect  (and
-;         (facing tree_tap)
-;         (decrease ( inventory tree_tap) 1)
-;         (decrease ( world air) 1)
-;         (increase ( world tree_tap) 1)
-;     )
-; )
 
 (:action craftpogo_stick
     :parameters    ()
