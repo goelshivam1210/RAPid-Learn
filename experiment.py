@@ -65,7 +65,8 @@ class RapidExperiment(Experiment):
         # run the pre novelty trials
         for pre_novelty_trial in range(self.trials_pre_novelty):
             obs = self.env.reset()
-            self.env.render()
+            if self.render:
+                self.env.render()
             brain1.generate_pddls(self.env)
             plan, game_action_set = brain1.call_planner("domain", "problem", self.env)  # get a plan
             result, failed_action, step_count = brain1.execute_plan(self.env, game_action_set, obs)
@@ -112,13 +113,14 @@ class RapidExperiment(Experiment):
             if not result and failed_action is not None:  # cases when the plan failed for the first time and the agent needs to learn a new action using RL
                 # print ("Instantiating a RL Learner to learn a new action to solve the impasse.")
                 flag_to_check_new_item_in_inv = False
-                for new_item in self.new_item_in_world:
-                    if self.env.inventory_items_quantity[new_item] > 0:
-                        flag_to_check_new_item_in_inv = True
-                        self.trials_post_learning+=1
-                        print("item obtained in inv")
-                        # time.sleep(3)
-                        break
+                if self.new_item_in_world is not None:
+                    for new_item in self.new_item_in_world:
+                        if self.env.inventory_items_quantity[new_item] > 0:
+                            flag_to_check_new_item_in_inv = True
+                            self.trials_post_learning+=1
+                            print("item obtained in inv")
+                            # time.sleep(3)
+                            break
                 if flag_to_check_new_item_in_inv == True:
                     print("trials post learning: ", self.trials_post_learning)
                     continue 

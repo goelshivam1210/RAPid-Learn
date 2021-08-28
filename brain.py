@@ -384,7 +384,8 @@ class Brain:
                     if info['result']==False:
                         self.failed_action_set[self.plan[i]] = None
                         return False, self.plan[i], env.step_count
-                    env.render()
+                    if self.render:
+                        env.render()
                     rew_eps += reward
                     count += 1
                     if done:
