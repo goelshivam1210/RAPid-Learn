@@ -8,14 +8,13 @@ import argparse
 import copy
 import uuid
 from abc import abstractmethod, ABC
-
+import yaml
 import gym
 
 from brain import Brain
+from params import EPS_TO_EVAL
 
 ENV_ID = 'NovelGridworld-Pogostick-v1'  # always remains the same.
-EPS_TO_EVAL = 5
-
 
 class Experiment(ABC):
     DATA_DIR = 'data'
@@ -29,9 +28,6 @@ class Experiment(ABC):
         self.render = args['render']
 
         os.makedirs(self.results_dir, exist_ok=True)
-
-        self.write_row_to_results(header_train, "train")
-        self.write_row_to_results(header_test, "test")
 
         self.env = gym.make(ENV_ID)
 
@@ -95,7 +91,7 @@ class RapidExperiment(Experiment):
 
         if len(env_post_items_quantity.keys() - env_pre_items_quantity.keys()) > 0:
             # we need to bump up the movement actions probabilities and set flag for new item to True
-            self.new_item_in_world = env_post_items_quantity.keys() - env_pre_items_quantity.keys()  # This is a dictionary
+            self.new_item_in_world = env_post_items_quantity.keys() - env_pre_items_quantity.keys()  # This is a set
             self.actions_bump_up.update({'Forward': env_post_actions['Forward']})  # add all the movement actions
             self.actions_bump_up.update({'Left': env_post_actions['Left']})
             self.actions_bump_up.update({'Right': env_post_actions['Right']})
@@ -115,7 +111,21 @@ class RapidExperiment(Experiment):
             # print ("result = {}  Failed Action =  {}".format(result, failed_action))
             if not result and failed_action is not None:  # cases when the plan failed for the first time and the agent needs to learn a new action using RL
                 # print ("Instantiating a RL Learner to learn a new action to solve the impasse.")
+                flag_to_check_new_item_in_inv = False
+                for new_item in self.new_item_in_world:
+                    if self.env.inventory_items_quantity[new_item] > 0:
+                        flag_to_check_new_item_in_inv = True
+                        self.trials_post_learning+=1
+                        print("item obtained in inv")
+                        # time.sleep(3)
+                        break
+                if flag_to_check_new_item_in_inv == True:
+                    print("trials post learning: ", self.trials_post_learning)
+                    continue 
+                # if self.env.inventory_items_quanity[i] for i in self.new_item_in_world
                 self.write_row_to_results([1, 0, 0, step_count, 0 - step_count, 0], "train")
+                # print ("In brain self.guided_action = {}  self.guided_policy = {}".format(self.guided_action, self.guided_policy))
+
                 self.learned, data, data_eval = brain1.call_learner(failed_action=failed_action,
                                                                     actions_bump_up=self.actions_bump_up,
                                                                     new_item_in_the_world=self.new_item_in_world,
@@ -136,7 +146,7 @@ class RapidExperiment(Experiment):
 
             if not result and failed_action is None:  # The agent used the learned policy and yet was unable to solve
                 self.write_row_to_results([post_novelty_trial, 0, 0, step_count, 0 - step_count, 0], "train")
-                self.write_row_to_results([data[3][i] + 1, post_novelty_trial, step_count, 0 - step_count, 0], "test")
+                self.write_row_to_results([data_eval[3][j] + 1, post_novelty_trial, step_count, 0 - step_count, 0], "test")
                 continue
             if result:
                 self.write_row_to_results([post_novelty_trial, 0, 0, step_count, 1000 - step_count, 1], "train")

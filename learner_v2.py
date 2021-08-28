@@ -16,24 +16,7 @@ from NGLearner_util_v2 import get_create_success_func_from_predicate_set, Reward
 from generate_pddl import *
 from SimpleDQN import *
 from utils import AStarOperator, AStarPlanner
-
-# Params
-UPDATE_RATE = 10 # network weights update rate
-MAX_TIMESTEPS = 150
-MAX_EPISODES = 100000
-EPS_TO_EVAL = 5
-EVAL_INTERVAL = 100
-NUM_HIDDEN = 16
-GAMMA = 0.95
-LEARNING_RATE = 1e-3
-DECAY_RATE = 0.99
-MIN_EPSILON = 0.05
-MAX_EPSILON = 0.6
-random_seed = 2
-EXPLORATION_STOP = 30000
-LAMBDA = -math.log(0.01) / EXPLORATION_STOP # speed of decay
-MIN_RHO = 0.20 # constant for using guided policies.
-MAX_RHO = 0.80 
+from params import *
 
 action_map = {'moveforward':'Forward',
         'turnleft':'Left',
@@ -48,20 +31,17 @@ action_map = {'moveforward':'Forward',
         'select': 'Select'}
 
 class Learner:
-    def __init__(self, failed_action, env, plan, actions_bump_up, action_biasing = False,\
+    def __init__(self, failed_action, env, plan, actions_bump_up, guided_action = False,\
                  new_item_in_the_world=None, guided_policy=False, novelty_flag=False) -> None:
 
         self.env_to_reset = copy.deepcopy(env) # copy the complete environment instance
         self.env = env
-        if failed_action == "Break":
-            failed_action = "Break tree_log"
         self.failed_action = failed_action
-        self.failed_action_break = "Break"
         self.actions_bump_up = actions_bump_up
         self.new_item_in_the_world = new_item_in_the_world
         self.guided_policy = guided_policy
         self.learned_failed_action = False
-        self.action_biasing_flag = action_biasing
+        self.guided_action = guided_action
         if not self.learned_failed_action:
             self.mode = 'exploration' # we are exploring the novel environment to stitch the plan by learning the new failed action.
         else:
@@ -73,7 +53,7 @@ class Learner:
             "approach air tree_log": ['facing tree_log'],
             "approach air crafting_table": ['facing tree_log'],
             "approach minecraft:crafting_table": ['facing crafting_table'],
-            "Break tree_log": ['increase inventory_log 1'],
+            "Break": ['increase inventory_log 1'],
             "Craft_plank": ['increase inventory plank 1'],
             "Craft_stick": ['increase inventory stick 1'],
             "Craft_tree_tap": ['increase inventory tree_tap 1'],
@@ -84,22 +64,19 @@ class Learner:
         self.desired_effects = operator_map[failed_action]
         print("desired effects: ", self.desired_effects)
         self.create_success_func = get_create_success_func_from_predicate_set(self.desired_effects)
-        if self.failed_action == "Break tree_log":
-            self.reward_funcs = RewardFunctionGenerator(plan, self.failed_action_break)
-        else:
-            self.reward_funcs = RewardFunctionGenerator(plan, self.failed_action)
+        self.reward_funcs = RewardFunctionGenerator(plan, self.failed_action)
 
         self.success_func = None
-        # print ("env.observationspace.shape ", env.observation_space.shape[0])
+        self.clever_exploration_flag = False
+        # print ("self.guided_action = {}  self.guided_policy = {}".format(self.guided_action, self.guided_policy))
+        if self.guided_action and self.guided_policy:
+            self.clever_exploration_flag = True
 
         agent = SimpleDQN(int(env.action_space.n),int(env.observation_space.shape[0]),
                         NUM_HIDDEN,LEARNING_RATE,GAMMA,DECAY_RATE,MAX_EPSILON,
-                        self.action_biasing_flag, self.actions_bump_up,
+                        self.clever_exploration_flag, self.actions_bump_up,
                         self.env.actions_id, random_seed)
         agent.set_explore_epsilon(MAX_EPSILON)
-
-        # if transfer == True:
-        #     agent.load_model()
 
         self.learning_agent = agent
         self.reset_near_values = None
@@ -144,7 +121,7 @@ class Learner:
         self.R_eval = [] # storing rewards per episode
         self.Done_eval = [] # storing goal completion per episode
         self.Steps_eval = [] # storing the number of steps in each episode
-        self.Episode_eval = []
+        self.Episode_eval = [] # storing the number of episodes during evaluations
         data_eval = [self.R_eval, self.Done_eval, self.Steps_eval, self.Episode_eval]
 
         # if not self.success_func:
@@ -170,9 +147,7 @@ class Learner:
             print("Loading the transferred policy")
             self.learning_agent.load_model(novelty_name = novelty_name, operator_name = self.failed_action, transfer_from = transfer)
 
-        # episode_timesteps = 0
         for episode in range(MAX_EPISODES):
-            # time.sleep(2)
             reward_per_episode = 0
             episode_timesteps = 0
             epsilon = MIN_EPSILON + (MAX_EPSILON - MIN_EPSILON) * \
@@ -190,7 +165,6 @@ class Learner:
             # evaluating 
             if episode > 0 and episode % EVAL_INTERVAL == 0: # lets evaluate the current learnt policy, used for plot generation.
                 for episode_per_eval in range(EPS_TO_EVAL):
-                    # print ("evaluating {} episode ".format(episode_per_eval))
                     self.mode = 'exploitation'
                     timesteps, done = self.evaluate_policy()
                     self.Steps_eval.append(timesteps)
@@ -208,7 +182,6 @@ class Learner:
             # Get location of novel item -> Run motion planner to go to that location
             # Store state, action and reward
             if self.new_item_in_the_world is not None and self.guided_policy:
-                # time.sleep(20)
                 rand_e = np.random.uniform() # use the policy with some rho constant probability.
                 if rand_e < self.rho:
                     policies = []
@@ -229,8 +202,6 @@ class Learner:
 
             while True:
                 obs, action, done, info = self.step_env(orig_obs=obs, info=info, done=done)
-                # print("inventory: ", self.env.inventory_items_quantity)
-                # time.sleep(0.3)
                 episode_timesteps += 1
                 self.is_success_met = self.success_func(obs,info) # self.success_func returns a boolean indicating whether the desired effects were met
                 self.reward_success_met = self.reward_funcs.check_success(info)
@@ -252,7 +223,7 @@ class Learner:
                         self.learning_agent.update_parameters()
 
                     if done:
-                        if episode % 201 == 0:
+                        if episode % PRINT_EVERY == 0:
                             print ("{}--EP >>{}, steps>>{},  Rew>>{}, done(20)>>{}, eps>>{} rho>>{} ".format(self.novelty_name, episode, episode_timesteps, reward_per_episode, np.mean(self.Done[-20:]), round(self.learning_agent._explore_eps, 3), round(self.rho, 3)))
                             print("\n")
                         self.Epsilons.append(self.learning_agent._explore_eps)
@@ -261,15 +232,15 @@ class Learner:
                         self.Done.append(1)
                         self.R.append(reward_per_episode)
                         if episode > 70:
-                            if np.mean(self.R[-80:]) > 980: # check the average reward for last 70 episodes
+                            if np.mean(self.R[-70:]) > 970: # check the average reward for last 70 episodes
                                 # for future we can write an evaluation function here which runs a evaluation on the current policy.
-                                if  np.sum(self.Done[-50:]) > 48: # and check the success percentage of the agent > 80%.
+                                if  np.sum(self.Done[-50:]) > 46: # and check the success percentage of the agent > 80%.
                                     print ("The agent has learned to reach the subgoal")
                                     # plt.show()
                                     return True  
                         break
                     elif episode_timesteps >= MAX_TIMESTEPS:
-                        if episode % 201 == 0:
+                        if episode % PRINT_EVERY == 0:
                             print ("{}--EP >>{}, steps>>{},  Rew>>{}, done(20)>>{}, eps>>{} rho>>{} ".format(self.novelty_name, episode, episode_timesteps, reward_per_episode, np.mean(self.Done[-20:]), round(self.learning_agent._explore_eps, 3), round(self.rho, 3)))
                             print("\n")
                         self.Epsilons.append(self.learning_agent._explore_eps)
@@ -301,16 +272,12 @@ class Learner:
         ## Send action ##
         obs2, _r, _d, info_ = self.env.step(action) 
         # self.env.render()
-        # if action == self.env.actions_id['Spray']:
-        #     print ("used action = ", self.env.actions_id['Spray'])
-        # self.last_action = self.env.all_actions[action]
         self.last_obs = orig_obs.copy()
         info = info_
 
         return obs2, action, done, info
 
     def play_learned_policy(self, env, novelty_name, operator_name):
-        # self.env = GridworldMDP(env, False, render=False) # reinstantiate a new env instance.
         # self.env.render()
         self.env = env
         self.mode = 'exploitation' # want to act greedy
@@ -344,23 +311,18 @@ class Learner:
     def evaluate_policy(self):
         # evaluate the policy while learning.    
         obs = self.env.reset()
-        # self.env.render()
-        # time.sleep(3)
         generate_prob_pddl("PDDL", self.env)
         plan, game_action_set = self.call_planner("domain", "problem", self.env) # get a plan
         is_success = self.execute_plan_before_learnt(game_action_set)
-        if is_success:
-            print("plan = ",game_action_set)
+        # if is_success:
+        #     print("plan = ",game_action_set)
         return self.env.step_count, is_success 
 
     def execute_plan_before_learnt(self, plan):
         i = 0
-        # print ("plan = ", plan)
         while (i < len(plan)):
-            # print ("i", i)
-            # print("Executing plan_step: ", plan[i])
             sub_plan = []
-            if plan[i] == self.failed_action or plan[i] in self.failed_action_break: # the action we are evaluating
+            if plan[i] == self.failed_action: # the action we are evaluating, essentially we will play the policy in this
                 obs, reward, done, info = self.env.step(self.env.actions_id[plan[i]])
                 if info['result']==False:
                     # print ("I am playing policy")
@@ -376,7 +338,7 @@ class Learner:
                                         plan.remove(action_to_remove)
                                 except ValueError:
                                     pass                            
-                else:
+                else: # action was successfully executed
                     i+=1
                 # play the policy that is being learned (No need to load model).
                 # 2 novelties -> Scrape plank and FCT easy
@@ -399,12 +361,9 @@ class Learner:
                                     pass
                 else:
                     i += 1                                                    
-            elif 'approach' in plan[i]:
+            elif 'approach' in plan[i]: # when we need motion planner for the approach actions.
                 sub_plan = self.run_motion_planner(plan[i])
-                # print ("subplan", sub_plan)
                 for j in range (len(sub_plan)):
-                    # print("subplan action ", sub_plan[j])
-                    # time.sleep(1)
                     obs, reward, done, info = self.env.step(self.env.actions_id[sub_plan[j]])
                     # self.env.render()
                     if done:
@@ -476,10 +435,7 @@ class Learner:
         return action_set, game_action_set
 
     def play_policy(self):
-        # this run the policy to be evaluated, while the learning is going on.
-        # self.env = GridworldMDP(env, False, render=False) # reinstantiate a new env instance.
-        # self.env.render()
-        # self.mode = 'exploitation' # want to act greedy
+        # this runs the policy to be evaluated, while the learning is going on.
         self.is_success_met = False        
         done = False
         obs = self.env.get_observation()
@@ -488,14 +444,12 @@ class Learner:
         episode_timestep = 0
         self.success_func = self.create_success_func(obs,info) # self.success_func returns a boolean indicating whether the desired effects were met
         self.reward_funcs.store_init_info(info) 
-        # print ("")
         while True:            
             obs, action, done, info = self.step_env(orig_obs=obs, info=info, done=done)
             # self.env.render()
             self.is_success_met = self.success_func(self.env.get_observation(),self.env.get_info()) # self.success_func returns a boolean indicating whether the desired effects were met
             self.reward_success_met = self.reward_funcs.check_success(self.env.get_info())
 
-            # print ("self.is_success_met = ", self.is_success_met)
             episode_timestep += 1
             if self.is_success_met or self.reward_success_met:
                 done = True
@@ -508,8 +462,7 @@ class Learner:
                 return False, False
 
     def run_motion_planner(self, action):
-        # Instantiation of the AStar Planner with the 
-        # ox = 
+        # Instantiation of the AStar Planner  
         """
         Initialize grid map for a star planning
 
@@ -537,7 +490,6 @@ class Learner:
         astar_operator = AStarOperator(name = None, goal_type=None, effect_set=None)
 
         loc2 = action.split(" ")[-1] # last value of the approach action gives the location to go to
-        # print ("location to go to = {}".format(loc2))
         gx, gy = sx, sy
 
         if loc2 in self.env.items:
@@ -560,8 +512,6 @@ class Learner:
             ro = 'SOUTH'
 
         rxs, rys = astar_planner.planning(sx, sy, gx_, gy_)
-        # print("Goal location: {} {}".format(gx_, gy_) )
-        # print ("rxs and rys generated from the plan = {} {}".format(rxs, rys))
         sx, sy, plan = astar_operator.generateActionsFromPlan(sx, sy, so, rxs, rys, ro)
         return plan
 

@@ -52,7 +52,7 @@
 (:action crafttree_tap
     :parameters    ()
     :precondition  (and
-        (>= ( inventory plank) 5)
+        (>= ( inventory plank) 4)
         (>= ( inventory stick) 1)
         (facing crafting_table)
     )

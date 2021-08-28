@@ -17,7 +17,7 @@ import time
 import copy
 import argparse
 import subprocess
-
+import yaml
 import numpy as np
 from scipy.spatial import distance
 import gym
@@ -32,9 +32,6 @@ from gym_novel_gridworlds.novelty_wrappers import inject_novelty
 from generate_pddl import *
 from learner_v2 import *
 # from operator_generalization import *
-
-GUIDED_ACTION = False # flag for clever exploration as opposed to epsilon-greedy exploration
-GUIDED_POLICY = False
 
 action_map = {'moveforward':'Forward',
         'turnleft':'Left',
@@ -138,7 +135,7 @@ class Brain:
         if actions_bump_up is not None:
             self.actions_bump_up = actions_bump_up
         else:
-            self.actions_bump_up = None
+            self.actions_bump_up = {}
         if new_item_in_the_world is not None:
             self.new_item_in_world = new_item_in_the_world
         else:
@@ -149,7 +146,8 @@ class Brain:
             # print ("")
             # print("Env observation shape:", env.observation_space.shape[0])
             self.actions_bump_up.update({failed_action:env.actions_id[failed_action]}) # add failed actions in the list
-            self.learner = Learner(failed_action, env, plan, self.actions_bump_up, guided_action, self.new_item_in_world, guided_policy)
+            # print ("guided_action = {}  guided_policy = {}".format(guided_action, guided_policy))
+            self.learner = Learner(failed_action = failed_action, env = env, plan = plan, actions_bump_up= self.actions_bump_up,new_item_in_the_world= self.new_item_in_world, guided_policy=guided_policy, guided_action=guided_action)
             self.learned_policies_dict[failed_action] = self.learner # save the learner instance object to the learned poliocies dict.
             learned, data, data_eval = self.learner.learn_policy(self.novelty_name, self.learned_policies_dict, self.failed_action_set, transfer=transfer) # learn to reach the goal state, if reached save the learned policy using novelty_name
             return learned, data, data_eval

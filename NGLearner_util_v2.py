@@ -207,7 +207,8 @@ def get_create_success_func_from_failed_operator(operator_str):
         return get_create_success_func_from_predicate_set(['increase inventory {} 1'.format(operator_str.split()[1]), 'decrease world {} 1'.format(operator_str.split()[1])])
     #e.g. break minecraft:log - real goal is inv increase obs, block in front air
     elif operator_str.split()[0] == BREAK_STR:
-        return get_create_success_func_from_predicate_set(['increase inventory {} 1'.format(operator_str.split()[1]), 'facing {}'.format(AIR_STR), 'decrease world {} 1'.format(operator_str.split()[1])])
+        return get_create_success_func_from_predicate_set(['increase inventory tree_log 1', 'facing {}'.format(AIR_STR), 'decrease world tree_log 1'])
+        # return get_create_success_func_from_predicate_set(['increase inventory {} 1'.format(operator_str.split()[1]), 'facing {}'.format(AIR_STR), 'decrease world {} 1'.format(operator_str.split()[1])])
     elif operator_str.split()[0] == 'place':
         return get_create_success_func_from_predicate_set(['decrease inventory {} 1'.format(operator_str.split()[1]), 'facing {}'.format(operator_str.split()[1])])
     # Don't have notion of tapped_log currently
@@ -251,8 +252,8 @@ class RewardFunctionGenerator:
         self.objects_required = []
         self.generate_success_func(plan, failed_action)
         self.actions_that_generate_objects_required = self.actions_generating_objects_req()
-        print("objects req are:", self.objects_required)
-        time.sleep(5)
+        # print("objects req are:", self.objects_required)
+        # time.sleep(5)
     # For each action in domain file, find preconditions and effects, save them
 
     def actions_generating_objects_req(self):
@@ -344,7 +345,7 @@ class RewardFunctionGenerator:
         for precond_obj in self.precondition_objects_required:
             if precond_obj in visited:
                 continue
-            print("effect map:", self.effect_map)
+            # print("effect map:", self.effect_map)
             action_that_yields_precond_obj = list(self.effect_map.keys())[list(self.effect_map.values()).index([precond_obj])]
             if action_that_yields_precond_obj is not failed_action:
                 visited.append(self.effect_map[action_that_yields_precond_obj][i] for i in range(len(self.effect_map[action_that_yields_precond_obj])))
@@ -355,14 +356,11 @@ class RewardFunctionGenerator:
     def check_success(self, info):
         flag = []
         for object_req in self.objects_required:
-            if object_req in info['inv_quant_dict'].keys():
-                if info['inv_quant_dict'][object_req] > self.init_info['inv_quant_dict'][object_req]:
-                    flag.append(True)
-                else:
-                    flag.append(False)
+            if get_inv_quant(info, object_req) > get_inv_quant(self.init_info, object_req):
+                flag.append(True)
             else:
-                return False
-            return np.all(flag)
+                flag.append(False)
+        return np.all(flag)    
 
     def store_init_info(self, info):
         self.init_info = info
