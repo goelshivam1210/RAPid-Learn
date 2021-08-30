@@ -28,7 +28,7 @@ GAMMA = 0.95
 LEARNING_RATE = 1e-3
 DECAY_RATE = 0.99
 MIN_EPSILON = 0.05
-MAX_EPSILON = 0.2
+MAX_EPSILON = 0.6
 random_seed = 2
 EXPLORATION_STOP = 30000
 LAMBDA = -math.log(0.01) / EXPLORATION_STOP # speed of decay
@@ -123,7 +123,7 @@ class Learner:
         self.impermissible_reason = None
         self.trial_time = 300
 
-    def learn_policy(self, novelty_name, learned_policies_dict, failed_action_set, transfer=False):
+    def learn_policy(self, novelty_name, learned_policies_dict, failed_action_set, transfer=None):
         self.reset_trial_vars()
         self.novelty_name = novelty_name
         self.learned_policies_dict = learned_policies_dict
@@ -152,7 +152,7 @@ class Learner:
             return False, data, data_eval
 
     # Run episodes for certain time steps.
-    def run_episode(self, transfer=False, novelty_name=None):
+    def run_episode(self, transfer=None, novelty_name=None):
         done = False
         obs = self.env.get_observation()
         info = self.env.get_info()
@@ -161,9 +161,9 @@ class Learner:
             'plannable':0,
             'unplannable':1
         }
-        if transfer: # here we transfer the weights to jumpstart the agent
+        if transfer is not None: # here we transfer the weights to jumpstart the agent
             print("Loading the transferred policy")
-            self.learning_agent.load_model(novelty_name = novelty_name, operator_name = self.failed_action)
+            self.learning_agent.load_model(novelty_name = novelty_name, operator_name = self.failed_action, transfer_from = transfer)
 
         # episode_timesteps = 0
         for episode in range(MAX_EPISODES):
@@ -201,12 +201,10 @@ class Learner:
             # Get location of novel item -> Run motion planner to go to that location
             # Store state, action and reward
             if self.new_item_in_the_world is not None and self.guided_policy:
+                # time.sleep(20)
                 rand_e = np.random.uniform() # use the policy with some rho constant probability.
                 if rand_e < self.rho:
                     policies = []
-                    # self.new_item_in_the_world.add('crafting_table')
-                    # self.new_item_in_the_world.add('tree_log')
-                    # print ("self.new_items_in_the_world = ", self.new_item_in_the_world)
                     for item in self.new_item_in_the_world:
                         action = "approach " + str(self.env.block_in_front_str) + " " + str(item)
                         policy = self.run_motion_planner(action)
@@ -247,7 +245,7 @@ class Learner:
 
                     if done:
                         if episode % 201 == 0:
-                            print ("{}--EP >>{}, steps>>{},  Rew>>{}, done(20)>>{}, eps>>{} rho>>{} ".format(self.novelty_name, episode, episode_timesteps, reward_per_episode, np.mean(self.Done[-20:]), round(self.learning_agent._explore_eps, 3), round(self.rho)))
+                            print ("{}--EP >>{}, steps>>{},  Rew>>{}, done(20)>>{}, eps>>{} rho>>{} ".format(self.novelty_name, episode, episode_timesteps, reward_per_episode, np.mean(self.Done[-20:]), round(self.learning_agent._explore_eps, 3), round(self.rho, 3)))
                             print("\n")
                         self.Epsilons.append(self.learning_agent._explore_eps)
                         self.Rhos.append(self.rho)
@@ -255,16 +253,16 @@ class Learner:
                         self.Done.append(1)
                         self.R.append(reward_per_episode)
                         if episode > 70:
-                            if np.mean(self.R[-70:]) > 980: # check the average reward for last 70 episodes
+                            if np.mean(self.R[-80:]) > 980: # check the average reward for last 70 episodes
                                 # for future we can write an evaluation function here which runs a evaluation on the current policy.
-                                if  np.sum(self.Done[-50:]) > 46: # and check the success percentage of the agent > 80%.
+                                if  np.sum(self.Done[-50:]) > 48: # and check the success percentage of the agent > 80%.
                                     print ("The agent has learned to reach the subgoal")
                                     # plt.show()
                                     return True  
                         break
                     elif episode_timesteps >= MAX_TIMESTEPS:
                         if episode % 201 == 0:
-                            print ("{}--EP >>{}, steps>>{},  Rew>>{}, done(20)>>{}, eps>>{} rho>>{} ".format(self.novelty_name, episode, episode_timesteps, reward_per_episode, np.mean(self.Done[-20:]), round(self.learning_agent._explore_eps, 3), round(self.rho)))
+                            print ("{}--EP >>{}, steps>>{},  Rew>>{}, done(20)>>{}, eps>>{} rho>>{} ".format(self.novelty_name, episode, episode_timesteps, reward_per_episode, np.mean(self.Done[-20:]), round(self.learning_agent._explore_eps, 3), round(self.rho, 3)))
                             print("\n")
                         self.Epsilons.append(self.learning_agent._explore_eps)
                         self.Rhos.append(self.rho)
@@ -332,8 +330,7 @@ class Learner:
                 return False
 
     def evaluate_policy(self):
-        # make a new brain instance and run the planner to run the policy.
-        #         
+        # evaluate the policy while learninf.    
         obs = self.env.reset()
         # self.env.render()
         # time.sleep(3)
@@ -341,7 +338,6 @@ class Learner:
         plan, game_action_set = self.call_planner("domain", "problem", self.env) # get a plan
         is_success = self.execute_plan_before_learnt(game_action_set)
         return self.env.step_count, is_success 
-
 
     def execute_plan_before_learnt(self, plan):
         i = 0
@@ -448,8 +444,8 @@ class Learner:
         return action_set, game_action_set
 
     def play_policy(self):
-        # this run the policy to be evaluated.
-                # self.env = GridworldMDP(env, False, render=False) # reinstantiate a new env instance.
+        # this run the policy to be evaluated, while the learning is going on.
+        # self.env = GridworldMDP(env, False, render=False) # reinstantiate a new env instance.
         # self.env.render()
         # self.mode = 'exploitation' # want to act greedy
         self.is_success_met = False        

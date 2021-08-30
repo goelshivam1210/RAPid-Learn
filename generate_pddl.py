@@ -11,11 +11,30 @@ import subprocess
 def generate_prob_pddl(pddl_dir,env):
     generate_problem_pddl(pddl_dir,env)
 
-def generate_domain_pddl(pddl_dir, env, learned_operator):
-    generate_domain(pddl_dir, env, learned_operator)
+def generate_domain_pddl(pddl_dir, env, new_item, filename: str = "domain"):
+    filename = pddl_dir + os.sep + filename + ".pddl"
+    with open(filename, "r", encoding="utf-8") as f:
+        all_lines = f.readlines()
 
-def generate_domain(pddl_dir, env, learned_operator):
-    pass
+    new_item_str_list = []
+    for i in new_item:
+        item = i.replace("''","")
+        new_item_str_list.append(f"\t" + str(item) + f" - physobj\n")
+
+    for item in new_item_str_list:
+        if item in all_lines:
+            new_item_str_list.remove(item)
+     
+    for line_no, line_text in enumerate(all_lines):
+        if ":types" in line_text:
+            for item in new_item_str_list:
+                all_lines.insert(line_no+1, item)
+            break
+
+    with open(filename, "w", encoding="utf-8") as f:
+        all_lines = "".join(all_lines)
+        # print ("all_lines = ", all_lines)
+        f.write(all_lines)
 
 def generate_problem_pddl(pddl_dir,env, filename: str = "problem"):
 

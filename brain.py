@@ -58,6 +58,7 @@ class Brain:
         self.completed_trials = 0
         self.learned_policies_dict = {} # store failed action:learner_instance object
         self.render = render
+        self.actions_bump_up = {}
 
     def run_brain(self, env_id=None, novelty_name=None, num_trails_pre_novelty=None, num_trials_post_learning=None, inject_multiple = False):
         '''        
@@ -74,11 +75,12 @@ class Brain:
         env_pre_items_quantity = copy.deepcopy(env.items_quantity)
         env_pre_actions = copy.deepcopy(env.actions_id)
         if novelty_name is None:
-            self.novelty_name = 'axetobreakeasy' #axetobreakeasy #axetobreakhard #firecraftingtableeasy #firecraftingtablehard #rubbertree
+            self.novelty_name = 'axetobreakhard' #axetobreakeasy #axetobreakhard #firecraftingtableeasy #firecraftingtablehard #rubbertree
         else:
             self.novelty_name = novelty_name
 
         env = self.inject_novelty(novelty_name = self.novelty_name)
+        env.reset()
         self.new_item_in_world = None
         # get environment instances after novelty injection
         env_post_items_quantity = copy.deepcopy(env.items_quantity)
@@ -90,7 +92,9 @@ class Brain:
             self.actions_bump_up.update({'Forward':env_post_actions['Forward']}) # add all the movement actions
             self.actions_bump_up.update({'Left':env_post_actions['Left']})
             self.actions_bump_up.update({'Right':env_post_actions['Right']})
-            
+        # print("actions to bump up: ", self.actions_bump_up)
+        # print("New item: ", self.new_item_in_world)
+
         for action in env_post_actions.keys() - env_pre_actions.keys(): # add new actions
             self.actions_bump_up.update({action: env_post_actions[action]})             
         # print("Observation space: ", env.observation_space.shape[0])
@@ -121,9 +125,7 @@ class Brain:
             # print("succesfully completed the task without any hassle!")
             # print("Needed to transfer: ", self.completed_trails)
 
-
-
-    def call_learner(self, failed_action, actions_bump_up = None, new_item_in_the_world = None, env=None, transfer = False, guided_action = False, guided_policy = False):
+    def call_learner(self, failed_action, actions_bump_up = None, new_item_in_the_world = None, env=None, transfer = None, guided_action = False, guided_policy = False):
         # This function instantiates a RL learner to start finding interesting states to send 
         # to the planner
 
@@ -296,10 +298,13 @@ class Brain:
         env = inject_novelty(env, novelty_name)
         return env
 
-    def generate_pddls(self, env):
+    def generate_pddls(self, env, new_item = None):
         self.pddl_dir = "PDDL"
         os.makedirs(self.pddl_dir, exist_ok = True)
         generate_prob_pddl(self.pddl_dir, env)
+        if new_item is not None:
+            print ("new item adding to the domain file = ", new_item)
+            generate_domain_pddl(self.pddl_dir, env, new_item)
     '''
     This function generates the PDDLs from the current environment instance
     ### I/P environment object
