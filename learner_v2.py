@@ -231,10 +231,10 @@ class Learner:
                         self.Steps.append(episode_timesteps)
                         self.Done.append(1)
                         self.R.append(reward_per_episode)
-                        if episode > 70:
-                            if np.mean(self.R[-70:]) > 970: # check the average reward for last 70 episodes
+                        if episode > NO_OF_EPS_TO_CHECK:
+                            if np.mean(self.R[-NO_OF_EPS_TO_CHECK:]) > SCORE_TO_CHECK: # check the average reward for last 70 episodes
                                 # for future we can write an evaluation function here which runs a evaluation on the current policy.
-                                if  np.sum(self.Done[-50:]) > 46: # and check the success percentage of the agent > 80%.
+                                if  np.sum(self.Done[-NO_OF_DONES_TO_CHECK:]) > NO_OF_SUCCESSFUL_DONE: # and check the success percentage of the agent > 80%.
                                     print ("The agent has learned to reach the subgoal")
                                     # plt.show()
                                     return True  

@@ -246,7 +246,7 @@ class SimpleDQN(object):
         print("saved to: ", path_to_save)
 
     def load_model(self, novelty_name, operator_name, transfer_from = None):
-        if transfer_from is not None:
+        if transfer_from is not None: # if the policy needs to be transferred, then load the from that file.
             novelty_name = transfer_from
         if self.clever_exploration:
             experiment_file_name = str(novelty_name) + "_smart-exploration_" + str(operator_name) 
