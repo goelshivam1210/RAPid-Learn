@@ -163,17 +163,17 @@ class BaselineExperiment(Experiment):
     TRAIN_EPISODES = 10
 
     def __init__(self, args):
-        super(BaselineExperiment, self).__init__(args, self.HEADER_TRAIN, self.HEADER_TEST, "baseline-")
+        super(BaselineExperiment, self).__init__(args, self.HEADER_TRAIN, self.HEADER_TEST,
+                                                 f"baseline-{self.TRAIN_EPISODES}episodes-")
 
         # Import these here so you can run RAPID experiments without having to have stable baselines installed
-        from stable_baselines3.common.logger import configure
         from stable_baselines3.common.monitor import Monitor
         from stable_baselines3.common.env_checker import check_env
         from stable_baselines3.common.utils import set_random_seed
         from stable_baselines3 import PPO
         set_random_seed(42, using_cuda=True)
 
-        self.env = gym.make('NovelGridworld-Pogostick-v1')
+        self.env = gym.make(ENV_ID)
 
         # Environment wrappers
         # (The order of these seems to be important)
@@ -189,8 +189,6 @@ class BaselineExperiment(Experiment):
         self.env.reward_intermediate = 50
 
         self.model = PPO("MlpPolicy", self.env, verbose=1)
-        # self.logger = configure(self.results_dir, ["stdout", "csv"])
-        # self.model.set_logger(self.logger)
 
     def run(self):
         self.train()
