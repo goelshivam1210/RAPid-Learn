@@ -43,11 +43,14 @@ class RewardShaping(gym.RewardWrapper):
         elif appropriate_next_action == 'craft_pogo_stick':
             if self.env.inventory_items_quantity['pogo_stick'] - self.last_inventory['pogo_stick'] > 0:
                 reward += 1000
-
+        print(f"Best next action: {appropriate_next_action}")
+        if not appropriate_next_action:
+            print('stop')
         self.last_inventory = copy.deepcopy(self.env.inventory_items_quantity)
         return reward
 
     def _determine_appropriate_next_action(self):
+        # TODO: There's a bug in this condition, need to fix asap
         if sum([self.env.inventory_items_quantity['tree_tap'],
                 self.env.inventory_items_quantity['rubber'],
                 self.env.inventory_items_quantity['pogo_stick']]) < 1 and self.env.inventory_items_quantity[
@@ -68,7 +71,7 @@ class RewardShaping(gym.RewardWrapper):
         if sum([self.env.inventory_items_quantity['stick'], self.env.inventory_items_quantity['tree_tap'],
                 self.env.inventory_items_quantity['rubber'],
                 self.env.inventory_items_quantity['pogo_stick']]) < 1 and \
-                self.env.inventory_items_quantity['plank'] >= 4 and self.env.inventory_items_quantity['stick'] == 0:
+                self.env.inventory_items_quantity['plank'] >= 2 and self.env.inventory_items_quantity['stick'] == 0:
             return 'craft_sticks'
 
         if sum([self.env.inventory_items_quantity['tree_tap'],
