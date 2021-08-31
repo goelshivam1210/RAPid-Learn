@@ -185,9 +185,6 @@ class BaselineExperiment(Experiment):
         self.env = RewardShaping(self.env)
         check_env(self.env, warn=True)
 
-        self.env.reward_done = 1000
-        self.env.reward_intermediate = 50
-
         self.model = PPO("MlpPolicy", self.env, verbose=1)
 
     def run(self):
@@ -203,7 +200,7 @@ class BaselineExperiment(Experiment):
         from stable_baselines3.common.evaluation import evaluate_policy
         obs = self.env.reset()
         done = False
-        evaluate_policy(self.model, self.env, self.trials_pre_novelty)
+        evaluate_policy(self.model, self.env, self.trials_pre_novelty, deterministic=False)
 
         self.env.close()
 
