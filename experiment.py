@@ -10,7 +10,6 @@ import uuid
 from abc import abstractmethod, ABC
 import yaml
 import gym
-from gym.wrappers.record_episode_statistics import RecordEpisodeStatistics
 
 from brain import Brain
 from baselines.wrappers import *
@@ -164,44 +163,50 @@ class BaselineExperiment(Experiment):
     TRAIN_EPISODES = 10
 
     def __init__(self, args):
-        super(BaselineExperiment, self).__init__(args, self.HEADER_TRAIN, self.HEADER_TEST)
+        super(BaselineExperiment, self).__init__(args, self.HEADER_TRAIN, self.HEADER_TEST, "baseline-")
+
+        # Import these here so you can run RAPID experiments without having to have stable baselines installed
+        from stable_baselines3.common.logger import configure
+        from stable_baselines3.common.monitor import Monitor
+        from stable_baselines3.common.env_checker import check_env
+        from stable_baselines3.common.utils import set_random_seed
+        from stable_baselines3 import PPO
+        set_random_seed(42, using_cuda=True)
+
         self.env = gym.make('NovelGridworld-Pogostick-v1')
 
-        # The order of the wrappers seems to be important
+        # Environment wrappers
+        # (The order of these seems to be important)
         self.env = EpisodicWrapper(self.env, self.MAX_TIMESTEPS_PER_EPISODE)
-        self.env = RecordEpisodeStatistics(self.env)
+        # self.env = RecordEpisodeStatsWrapper(self.env)
+        self.env = TrainTestModeWrapper(self.env)
+        self.env = Monitor(self.env, self.results_dir + os.sep + "monitor.csv", allow_early_resets=True,
+                           info_keywords=('success', 'mode'))
         self.env = RewardShaping(self.env)
-
-        from stable_baselines3.common.env_checker import check_env
         check_env(self.env, warn=True)
-
-        if self.render:
-            self.env.render()
 
         self.env.reward_done = 1000
         self.env.reward_intermediate = 50
 
-    def run(self):
-        from stable_baselines3 import PPO
-        model = PPO("MlpPolicy", self.env, verbose=1)
-        model.learn(total_timesteps=self.TRAIN_EPISODES * self.MAX_TIMESTEPS_PER_EPISODE)
+        self.model = PPO("MlpPolicy", self.env, verbose=1)
+        # self.logger = configure(self.results_dir, ["stdout", "csv"])
+        # self.model.set_logger(self.logger)
 
+    def run(self):
+        self.train()
+        self.evaluate()
+
+    def train(self):
+        self.env.metadata['mode'] = 'train'
+        self.model.learn(total_timesteps=self.TRAIN_EPISODES * self.MAX_TIMESTEPS_PER_EPISODE)
+
+    def evaluate(self):
+        self.env.metadata['mode'] = 'test'
+
+        from stable_baselines3.common.evaluation import evaluate_policy
         obs = self.env.reset()
         done = False
-
-        for episode in range(self.trials_pre_novelty):
-            while not done:
-                action, _states = model.predict(obs)
-                obs, reward, done, info = self.env.step(action)
-                if self.render:
-                    self.env.render()
-                if done:
-                    success = self.env.last_done
-                    obs = self.env.reset()
-                    done = False
-                    episode_stats = info['episode']
-                    self.write_row_to_results(['na', episode, episode_stats['l'], episode_stats['r'], success], 'test')
-                    break
+        evaluate_policy(self.model, self.env, self.trials_pre_novelty)
 
         self.env.close()
 
@@ -211,7 +216,7 @@ if __name__ == "__main__":
     ap.add_argument("-N", "--novelty_name", default='axetobreakeasy',
                     help="Novelty to inject: #axetobreakeasy #axetobreakhard #firecraftingtableeasy #firecraftingtablehard #rubbertree #axefirecteasy",
                     type=str)
-    ap.add_argument("-TP", "--trials_pre_novelty", default=1, help="Number of trials pre novelty", type=int)
+    ap.add_argument("-TP", "--trials_pre_novelty", default=3, help="Number of trials pre novelty", type=int)
     ap.add_argument("-TN", "--trials_post_learning", default=5, help="Number of trials post recovering from novelty",
                     type=int)
     ap.add_argument("-P", "--print_every", default=200, help="Number of epsiodes you want to print the results",
@@ -220,5 +225,5 @@ if __name__ == "__main__":
     ap.add_argument("-T", "--transfer", default=None, type=str)
     ap.add_argument("-R", "--render", default=False, type=bool)
     args = vars(ap.parse_args())
-    experiment1 = RapidExperiment(args)
+    experiment1 = BaselineExperiment(args)
     experiment1.run()
