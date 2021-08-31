@@ -1,5 +1,4 @@
 import gym
-from gym.wrappers.record_episode_statistics import RecordEpisodeStatistics
 
 class RewardShaping(gym.RewardWrapper):
     """Add intermediate rewards for reaching useful subgoals."""
@@ -33,7 +32,8 @@ class EpisodicWrapper(gym.Wrapper):
         self.timestep = 0
         return obs
 
-class TrainTestModeWrapper(gym.Wrapper):
+class InfoExtenderWrapper(gym.Wrapper):
+    """Appends several useful things to the info dict."""
     def __init__(self, env, mode='train'):
         super().__init__(env)
         self.env = env
@@ -42,4 +42,5 @@ class TrainTestModeWrapper(gym.Wrapper):
     def step(self, action):
         next_state, reward, done, info = self.env.step(action)
         info['mode'] = self.env.metadata['mode']
+        info['success'] = str(self.env.last_done)
         return next_state, reward, done, info

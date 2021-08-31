@@ -179,7 +179,7 @@ class BaselineExperiment(Experiment):
         # (The order of these seems to be important)
         self.env = EpisodicWrapper(self.env, self.MAX_TIMESTEPS_PER_EPISODE)
         # self.env = RecordEpisodeStatsWrapper(self.env)
-        self.env = TrainTestModeWrapper(self.env)
+        self.env = InfoExtenderWrapper(self.env)
         self.env = Monitor(self.env, self.results_dir + os.sep + "monitor.csv", allow_early_resets=True,
                            info_keywords=('success', 'mode'))
         self.env = RewardShaping(self.env)
@@ -201,8 +201,7 @@ class BaselineExperiment(Experiment):
         self.model.learn(total_timesteps=self.TRAIN_EPISODES * self.MAX_TIMESTEPS_PER_EPISODE)
 
     def evaluate(self):
-        self.env.metadata['mode'] = 'test'
-
+        self.env.metadata['mode'] = 'test-prenovelty'
         from stable_baselines3.common.evaluation import evaluate_policy
         obs = self.env.reset()
         done = False
