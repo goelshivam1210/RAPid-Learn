@@ -17,15 +17,15 @@ class RewardShaping(gym.RewardWrapper):
                 reward += 50
         # Break tree
         elif appropriate_next_action == 'break_tree':
-            if self.env.inventory_items_quantity['tree_log'] - self.self.last_inventory['tree_log'] > 0:
+            if self.env.inventory_items_quantity['tree_log'] - self.last_inventory['tree_log'] > 0:
                 reward += 50
         # Craft planks
         elif appropriate_next_action == 'craft_plank':
-            if self.env.inventory_items_quantity['plank'] - self.self.last_inventory['plank'] > 0:
+            if self.env.inventory_items_quantity['plank'] - self.last_inventory['plank'] > 0:
                 reward += 50
         # craft sticks
         elif appropriate_next_action == 'craft_sticks':
-            if self.env.inventory_items_quantity['stick'] - self.self.last_inventory['stick'] > 0:
+            if self.env.inventory_items_quantity['stick'] - self.last_inventory['stick'] > 0:
                 reward += 50
         # approach crafting table
         elif appropriate_next_action == 'approach_crafting_table':
@@ -33,15 +33,15 @@ class RewardShaping(gym.RewardWrapper):
                 reward += 50
         # craft treetap
         elif appropriate_next_action == 'craft_treetap':
-            if self.env.inventory_items_quantity['tree_tap'] - self.self.last_inventory['tree_tap'] > 0:
+            if self.env.inventory_items_quantity['tree_tap'] - self.last_inventory['tree_tap'] > 0:
                 reward += 50
         # extract rubber
         elif appropriate_next_action == 'extract_rubber':
-            if self.env.inventory_items_quantity['rubber'] - self.self.last_inventory['rubber'] > 0:
+            if self.env.inventory_items_quantity['rubber'] - self.last_inventory['rubber'] > 0:
                 reward += 50
         # craft pogostick
         elif appropriate_next_action == 'craft_pogo_stick':
-            if self.env.inventory_items_quantity['pogo_stick'] - self.self.last_inventory['pogo_stick'] > 0:
+            if self.env.inventory_items_quantity['pogo_stick'] - self.last_inventory['pogo_stick'] > 0:
                 reward += 50
 
         self.last_inventory = copy.deepcopy(self.env.inventory_items_quantity)
