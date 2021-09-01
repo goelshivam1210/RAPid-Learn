@@ -16,3 +16,4 @@ vim.exe.stackdump
 
 # MacOs files
 .DS_Store
+/data/
