@@ -22,13 +22,13 @@ import math
 # NO_OF_SUCCESSFUL_DONE = 45
 
 # # firecraftingtablehard # SMART_EXPLORATION 16K 
-MAX_TIMESTEPS = 150
-MAX_EPSILON = 0.7
-MAX_RHO = 0.7
-MIN_RHO = 0.10
-EXPLORATION_STOP = 20000
-SCORE_TO_CHECK = 900
-NO_OF_SUCCESSFUL_DONE = 45
+# MAX_TIMESTEPS = 150
+# MAX_EPSILON = 0.7
+# MAX_RHO = 0.7
+# MIN_RHO = 0.10
+# EXPLORATION_STOP = 20000
+# SCORE_TO_CHECK = 900
+# NO_OF_SUCCESSFUL_DONE = 45
 
 # # axetobreakhard # EPSILON_GREEDY # ~ 11K episodes (eps = 0.3) 
 # MAX_TIMESTEPS = 300
@@ -49,14 +49,14 @@ NO_OF_SUCCESSFUL_DONE = 45
 # NO_OF_SUCCESSFUL_DONE = 45
 
 # # axetobreakeasy # firecraftingtableeasy # FCTEASY eps = 0.2 ~700 episodes  In this why is the inventory tree_log > 1 inserted??
-# MAX_TIMESTEPS = 300
-# # MAX_EPSILON = 0.20
-# MAX_EPSILON = 0.2 #0.2
-# MAX_RHO = 0.80 
-# MIN_RHO = 0.20
-# EXPLORATION_STOP = 1000 #10000
-# SCORE_TO_CHECK = 965
-# NO_OF_SUCCESSFUL_DONE = 46
+MAX_TIMESTEPS = 300
+# MAX_EPSILON = 0.20
+MAX_EPSILON = 0.2 #0.2
+MAX_RHO = 0.80 
+MIN_RHO = 0.20
+EXPLORATION_STOP = 1000 #10000
+SCORE_TO_CHECK = 980
+NO_OF_SUCCESSFUL_DONE = 47
 
 
 # # rubber_tree # EPS_GREEDY 
@@ -81,15 +81,17 @@ NO_OF_SUCCESSFUL_DONE = 45
 # remains same always
 UPDATE_RATE = 10 # network weights update rate
 MAX_EPISODES = 100000
-EPS_TO_EVAL = 2
-EVAL_INTERVAL = 400
-NUM_HIDDEN = 16
-GAMMA = 0.95
+EPS_TO_EVAL = 5
+EVAL_INTERVAL = 25
+# NUM_HIDDEN = 16
+NUM_HIDDEN = 24
+# GAMMA = 0.95
+GAMMA = 0.98
 LEARNING_RATE = 1e-3
 DECAY_RATE = 0.99
 MIN_EPSILON = 0.05
 # MAX_EPSILON = 0.70
-random_seed = 2
+random_seed = 4
 # EXPLORATION_STOP = 30000
 LAMBDA = -math.log(0.01) / EXPLORATION_STOP # speed of decay
 # MIN_RHO = 0.20 # constant for using guided policies.

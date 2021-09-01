@@ -21,7 +21,7 @@ class Experiment(ABC):
 
     def __init__(self, args, header_train, header_test, extra_run_ids=''):
         self.hashid = uuid.uuid4().hex
-        self.results_dir = Experiment.DATA_DIR + os.sep + extra_run_ids + self.hashid
+        self.results_dir = Experiment.DATA_DIR + os.sep + extra_run_ids +"_" +self.hashid
         self.trials_pre_novelty = args['trials_pre_novelty']
         self.trials_post_learning = args['trials_post_learning']
         self.novelty_name = args['novelty_name']
@@ -44,11 +44,11 @@ class Experiment(ABC):
 
 class RapidExperiment(Experiment):
     HEADER_TRAIN = ['Trial_no', 'Epsilon', 'Rho', 'Timesteps', 'Reward', 'Done']
-    HEADER_TEST = ['Episode_no', 'Trial_no', 'Timesteps', 'Reward', 'Done']
+    HEADER_TEST = ['Mode', 'Episode_no', 'Trial_no', 'Timesteps', 'Reward', 'Done'] # Mode = 0: Planning, 1 = Learning, 2= Recovery
 
     def __init__(self, args):
         super(RapidExperiment, self).__init__(args, self.HEADER_TRAIN, self.HEADER_TEST,
-                                              args['novelty_name'] + args['learner'])
+                                              "_"+args['novelty_name'] +"_"+ args['learner'])
         if args['learner'] == 'smart-exploration':
             self.guided_action = True
             self.guided_policy = True
@@ -73,10 +73,10 @@ class RapidExperiment(Experiment):
             # print ("result = {}  Failed Action =  {}".format(result, failed_action))
             if result == True:
                 self.write_row_to_results([pre_novelty_trial, 0, 0, step_count, 1000 - step_count, 1], "train")
-                self.write_row_to_results([0, pre_novelty_trial, step_count, 1000 - step_count, 1], "test")
+                self.write_row_to_results([0, 0, pre_novelty_trial, step_count, 1000 - step_count, 1], "test")
             else:
                 self.write_row_to_results([pre_novelty_trial, 0, 0, step_count, -step_count, 0], "train")
-                self.write_row_to_results([0, pre_novelty_trial, step_count, 1000 - step_count, 1], "test")
+                self.write_row_to_results([0, 0, pre_novelty_trial, step_count,  - step_count, 0], "test")
 
         env_pre_items_quantity = copy.deepcopy(self.env.items_quantity)
         env_pre_actions = copy.deepcopy(self.env.actions_id)
@@ -118,10 +118,11 @@ class RapidExperiment(Experiment):
                         if self.env.inventory_items_quantity[new_item] > 0:
                             flag_to_check_new_item_in_inv = True
                             self.trials_post_learning+=1
-                            print("item obtained in inv")
+                            print("item accidentally obtained in inv.. resetting..")
                             # time.sleep(3)
                             break
                 if flag_to_check_new_item_in_inv == True:
+                    brain1.failed_action_set = {}
                     print("trials post learning: ", self.trials_post_learning)
                     continue 
                 # if self.env.inventory_items_quanity[i] for i in self.new_item_in_world
@@ -140,24 +141,25 @@ class RapidExperiment(Experiment):
                     for i in range(len(data[0])):
                         self.write_row_to_results([2 + i, data[3][i], data[4][i], data[2][i], data[0][i], data[1][i]], "train")
                     # data_3_eval = data[3][-1]
+                    # self.write_row_to_results([1, data_eval[3], data_eval[2], data_eval[0], data_eval[1]], "test")
                     for j in range(len(data_eval[0])):
                         self.write_row_to_results(
-                            [data_eval[3][j], j % EPS_TO_EVAL, data_eval[2][j], data_eval[0][j], data_eval[1][j]],
+                            [1, data_eval[3][j], EPS_TO_EVAL, data_eval[2][j], data_eval[0][j], data_eval[1][j]],
                             "test")
                     continue 
 
             if not result and failed_action is None:  # The agent used the learned policy and yet was unable to solve
                 self.write_row_to_results([post_novelty_trial, 0, 0, step_count, 0 - step_count, 0], "train")
-                self.write_row_to_results([data_eval[3][j] + 1, post_novelty_trial, step_count, 0 - step_count, 0], "test")
+                self.write_row_to_results([2, data_eval[3][j] + 1, post_novelty_trial, step_count, 0 - step_count, 0], "test")
                 continue
             if result:
                 self.write_row_to_results([post_novelty_trial, 0, 0, step_count, 1000 - step_count, 1], "train")
-                self.write_row_to_results([data_eval[3][j] + 1, post_novelty_trial, step_count, 1000 - step_count, 1], "test")
+                self.write_row_to_results([2, data_eval[3][j] + 1, post_novelty_trial, step_count, 1000 - step_count, 1], "test")
 
 
 class BaselineExperiment(Experiment):
     HEADER_TRAIN = ['Trial_no', 'Timesteps', 'Reward', 'Done']
-    HEADER_TEST = ['Episode_no', 'Trial_no', 'Timesteps', 'Reward', 'Done']
+    HEADER_TEST = ['Mode', 'Episode_no', 'Trial_no', 'Timesteps', 'Reward', 'Done']
 
     def __init__(self, args):
         super(BaselineExperiment, self).__init__(args, self.HEADER_TRAIN, self.HEADER_TEST)
