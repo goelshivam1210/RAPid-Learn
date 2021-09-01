@@ -1,4 +1,5 @@
 import time
+from datetime import datetime
 import math
 import sys
 import os
@@ -10,6 +11,8 @@ import uuid
 from abc import abstractmethod, ABC
 import yaml
 import gym
+import logging
+
 
 from brain import Brain
 from baselines.wrappers import *
@@ -17,20 +20,22 @@ from params import EPS_TO_EVAL
 
 ENV_ID = 'NovelGridworld-Pogostick-v1'  # always remains the same.
 
-class Experiment(ABC):
+class Experiment:
     DATA_DIR = 'data'
 
     def __init__(self, args, header_train, header_test, extra_run_ids=''):
         self.hashid = uuid.uuid4().hex
-        self.results_dir = Experiment.DATA_DIR + os.sep + extra_run_ids + self.hashid
+        self.experiment_id = extra_run_ids + "-" + self.hashid
+        self.results_dir = self._get_results_dir()
         self.trials_pre_novelty = args['trials_pre_novelty']
         self.trials_post_learning = args['trials_post_learning']
         self.novelty_name = args['novelty_name']
         self.render = args['render']
 
-        os.makedirs(self.results_dir, exist_ok=True)
-
         self.env = gym.make(ENV_ID)
+
+    def _get_results_dir(self):
+        return Experiment.DATA_DIR + os.sep + self.experiment_id
 
     @abstractmethod
     def run(self):
@@ -50,6 +55,7 @@ class RapidExperiment(Experiment):
     def __init__(self, args):
         super(RapidExperiment, self).__init__(args, self.HEADER_TRAIN, self.HEADER_TEST,
                                               args['novelty_name'] + args['learner'])
+        os.makedirs(self.results_dir, exist_ok=True)
         if args['learner'] == 'smart-exploration':
             self.guided_action = True
             self.guided_policy = True
@@ -161,10 +167,11 @@ class BaselineExperiment(Experiment):
     HEADER_TEST = ['trial', 'episode', 'timesteps', 'reward', 'success']
     MAX_TIMESTEPS_PER_EPISODE = 500
     TRAIN_EPISODES = 10
+    SAVED_MODEL_NAME = 'model'
 
     def __init__(self, args):
         super(BaselineExperiment, self).__init__(args, self.HEADER_TRAIN, self.HEADER_TEST,
-                                                 f"baseline-{self.TRAIN_EPISODES}episodes-")
+                                                 f"baseline-{self.TRAIN_EPISODES}episodes")
 
         # Import these here so you can run RAPID experiments without having to have stable baselines installed
         from stable_baselines3.common.monitor import Monitor
@@ -173,36 +180,57 @@ class BaselineExperiment(Experiment):
         from stable_baselines3 import PPO
         set_random_seed(42, using_cuda=True)
 
-        self.env = gym.make(ENV_ID)
+        self.load_model = args["load_model"]
+        if self.load_model:
+            print(f"Attempting to load pretrained model {self.load_model}.")
+            self.experiment_id = self.load_model
+            self.model = PPO.load(
+                self._get_results_dir() + os.sep + BaselineExperiment.SAVED_MODEL_NAME)
+        else:
+            os.makedirs(self._get_results_dir(), exist_ok=True)
+            self.model = PPO("MlpPolicy", self.env, verbose=0)
 
         # Environment wrappers
         # (The order of these seems to be important)
         self.env = EpisodicWrapper(self.env, self.MAX_TIMESTEPS_PER_EPISODE)
         # self.env = RecordEpisodeStatsWrapper(self.env)
         self.env = InfoExtenderWrapper(self.env)
-        self.env = Monitor(self.env, self.results_dir + os.sep + "monitor.csv", allow_early_resets=True,
-                           info_keywords=('success', 'mode'))
+        self.env = Monitor(self.env, self._get_results_dir() + os.sep + to_datestring(time.time()) + "-monitor.csv",
+                           allow_early_resets=True, info_keywords=('success', 'mode'))
         self.env = RewardShaping(self.env)
         check_env(self.env, warn=True)
 
-        self.model = PPO("MlpPolicy", self.env, verbose=1)
+        # This is to use the env with all the wrappers for the model.
+        self.model.set_env(self.env)
 
     def run(self):
-        self.train()
+        if not self.load_model:
+            print("No pretrained model supplied, training from scratch.")
+            self.train()
+        else:
+            print(f"Skipping training because pretrained model {self.load_model} was supplied.")
+
         self.evaluate()
 
     def train(self):
+        print(f"Training model for {self.TRAIN_EPISODES} episodes")
         self.env.metadata['mode'] = 'train'
         self.model.learn(total_timesteps=self.TRAIN_EPISODES * self.MAX_TIMESTEPS_PER_EPISODE)
+        self.model.save(self.results_dir + os.sep + BaselineExperiment.SAVED_MODEL_NAME)
 
     def evaluate(self):
+        print("Evaluating model.")
         self.env.metadata['mode'] = 'test-prenovelty'
         from stable_baselines3.common.evaluation import evaluate_policy
         obs = self.env.reset()
         done = False
-        evaluate_policy(self.model, self.env, self.trials_pre_novelty, deterministic=False)
+        evaluate_policy(self.model, self.env, self.trials_pre_novelty, deterministic=False, render=False)
 
         self.env.close()
+
+
+def to_datestring(unixtime: int, format='%Y-%m-%d_%H:%M:%S'):
+    return datetime.utcfromtimestamp(unixtime).strftime(format)
 
 
 if __name__ == "__main__":
