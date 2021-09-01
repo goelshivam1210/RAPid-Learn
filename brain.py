@@ -17,7 +17,6 @@ import time
 import copy
 import argparse
 import subprocess
-import yaml
 import numpy as np
 from scipy.spatial import distance
 import gym
