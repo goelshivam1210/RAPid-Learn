@@ -50,12 +50,13 @@ class Experiment:
 
 class RapidExperiment(Experiment):
     HEADER_TRAIN = ['Trial_no', 'Epsilon', 'Rho', 'Timesteps', 'Reward', 'Done']
-    HEADER_TEST = ['Episode_no', 'Trial_no', 'Timesteps', 'Reward', 'Done']
+    HEADER_TEST = ['Mode', 'Episode_no', 'Trial_no', 'Timesteps', 'Reward', 'Done'] # Mode = 0: Planning, 1 = Learning, 2= Recovery
 
     def __init__(self, args):
         super(RapidExperiment, self).__init__(args, self.HEADER_TRAIN, self.HEADER_TEST,
-                                              args['novelty_name'] + args['learner'])
+                                              "_" + args['novelty_name'] + "_"+ args['learner'])
         os.makedirs(self.results_dir, exist_ok=True)
+
         if args['learner'] == 'smart-exploration':
             self.guided_action = True
             self.guided_policy = True
@@ -80,10 +81,10 @@ class RapidExperiment(Experiment):
             # print ("result = {}  Failed Action =  {}".format(result, failed_action))
             if result == True:
                 self.write_row_to_results([pre_novelty_trial, 0, 0, step_count, 1000 - step_count, 1], "train")
-                self.write_row_to_results([0, pre_novelty_trial, step_count, 1000 - step_count, 1], "test")
+                self.write_row_to_results([0, 0, pre_novelty_trial, step_count, 1000 - step_count, 1], "test")
             else:
                 self.write_row_to_results([pre_novelty_trial, 0, 0, step_count, -step_count, 0], "train")
-                self.write_row_to_results([0, pre_novelty_trial, step_count, 1000 - step_count, 1], "test")
+                self.write_row_to_results([0, 0, pre_novelty_trial, step_count,  - step_count, 0], "test")
 
         env_pre_items_quantity = copy.deepcopy(self.env.items_quantity)
         env_pre_actions = copy.deepcopy(self.env.actions_id)
@@ -125,12 +126,13 @@ class RapidExperiment(Experiment):
                         if self.env.inventory_items_quantity[new_item] > 0:
                             flag_to_check_new_item_in_inv = True
                             self.trials_post_learning+=1
-                            print("item obtained in inv")
+                            print("item accidentally obtained in inv.. resetting..")
                             # time.sleep(3)
                             break
                 if flag_to_check_new_item_in_inv == True:
+                    brain1.failed_action_set = {}
                     print("trials post learning: ", self.trials_post_learning)
-                    continue
+                    continue 
                 # if self.env.inventory_items_quanity[i] for i in self.new_item_in_world
                 self.write_row_to_results([1, 0, 0, step_count, 0 - step_count, 0], "train")
                 # print ("In brain self.guided_action = {}  self.guided_policy = {}".format(self.guided_action, self.guided_policy))
@@ -147,19 +149,20 @@ class RapidExperiment(Experiment):
                     for i in range(len(data[0])):
                         self.write_row_to_results([2 + i, data[3][i], data[4][i], data[2][i], data[0][i], data[1][i]], "train")
                     # data_3_eval = data[3][-1]
+                    # self.write_row_to_results([1, data_eval[3], data_eval[2], data_eval[0], data_eval[1]], "test")
                     for j in range(len(data_eval[0])):
                         self.write_row_to_results(
-                            [data_eval[3][j], j % EPS_TO_EVAL, data_eval[2][j], data_eval[0][j], data_eval[1][j]],
+                            [1, data_eval[3][j], EPS_TO_EVAL, data_eval[2][j], data_eval[0][j], data_eval[1][j]],
                             "test")
                     continue 
 
             if not result and failed_action is None:  # The agent used the learned policy and yet was unable to solve
                 self.write_row_to_results([post_novelty_trial, 0, 0, step_count, 0 - step_count, 0], "train")
-                self.write_row_to_results([data_eval[3][j] + 1, post_novelty_trial, step_count, 0 - step_count, 0], "test")
+                self.write_row_to_results([2, data_eval[3][j] + 1, post_novelty_trial, step_count, 0 - step_count, 0], "test")
                 continue
             if result:
                 self.write_row_to_results([post_novelty_trial, 0, 0, step_count, 1000 - step_count, 1], "train")
-                self.write_row_to_results([data_eval[3][j] + 1, post_novelty_trial, step_count, 1000 - step_count, 1], "test")
+                self.write_row_to_results([2, data_eval[3][j] + 1, post_novelty_trial, step_count, 1000 - step_count, 1], "test")
 
 
 class BaselineExperiment(Experiment):
@@ -238,7 +241,7 @@ if __name__ == "__main__":
     ap.add_argument("-N", "--novelty_name", default='axetobreakeasy',
                     help="Novelty to inject: #axetobreakeasy #axetobreakhard #firecraftingtableeasy #firecraftingtablehard #rubbertree #axefirecteasy",
                     type=str)
-    ap.add_argument("-TP", "--trials_pre_novelty", default=3, help="Number of trials pre novelty", type=int)
+    ap.add_argument("-TP", "--trials_pre_novelty", default=1, help="Number of trials pre novelty", type=int)
     ap.add_argument("-TN", "--trials_post_learning", default=5, help="Number of trials post recovering from novelty",
                     type=int)
     ap.add_argument("-P", "--print_every", default=200, help="Number of epsiodes you want to print the results",
@@ -247,5 +250,5 @@ if __name__ == "__main__":
     ap.add_argument("-T", "--transfer", default=None, type=str)
     ap.add_argument("-R", "--render", default=False, type=bool)
     args = vars(ap.parse_args())
-    experiment1 = BaselineExperiment(args)
+    experiment1 = RapidExperiment(args)
     experiment1.run()

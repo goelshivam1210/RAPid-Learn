@@ -118,11 +118,11 @@ class Learner:
         self.Rhos = []  # storing the rhos for each episode
         data = [self.R, self.Done, self.Steps, self.Epsilons, self.Rhos]
 
-        self.R_eval = [] # storing rewards per episode
-        self.Done_eval = [] # storing goal completion per episode
-        self.Steps_eval = [] # storing the number of steps in each episode
+        self.R_eval_mean = [] # storing rewards per episode
+        self.Done_eval_mean = [] # storing goal completion per episode
+        self.Steps_eval_mean = [] # storing the number of steps in each episode
         self.Episode_eval = [] # storing the number of episodes during evaluations
-        data_eval = [self.R_eval, self.Done_eval, self.Steps_eval, self.Episode_eval]
+        data_eval = [self.R_eval_mean, self.Done_eval_mean, self.Steps_eval_mean, self.Episode_eval]
 
         # if not self.success_func:
         self.learned_failed_action = self.run_episode(transfer, novelty_name)
@@ -164,21 +164,30 @@ class Learner:
             
             # evaluating 
             if episode > 0 and episode % EVAL_INTERVAL == 0: # lets evaluate the current learnt policy, used for plot generation.
+                R_eval = []
+                Done_eval = []
+                Steps_eval = []
                 for episode_per_eval in range(EPS_TO_EVAL):
                     self.mode = 'exploitation'
                     timesteps, done = self.evaluate_policy()
-                    self.Steps_eval.append(timesteps)
-                    self.Episode_eval.append(episode)
+                    Steps_eval.append(timesteps)
                     if done:
-                        self.Done_eval.append(1)
-                        self.R_eval.append(1000-timesteps)
+                        Done_eval.append(1)
+                        R_eval.append(1000-timesteps)
                     else:
-                        self.Done_eval.append(0)
-                        self.R_eval.append(0-timesteps)
+                        Done_eval.append(0)
+                        R_eval.append(0-timesteps)
+                # save all the trials mean score
+                self.Episode_eval.append(episode)
+                self.R_eval_mean.append(np.mean(R_eval))
+                self.Done_eval_mean.append(np.mean(Done_eval))
+                self.Steps_eval_mean.append(np.mean(Steps_eval))
+                # self.Episode_eval.append(episode)
                 self.mode = 'exploration'
                 self.learning_agent.reset()
-                print ("Evals: Rew(Avg.{}) >> {} done >> {}".format(EPS_TO_EVAL, np.average(self.R_eval[-EPS_TO_EVAL:]), sum(self.Done_eval[-EPS_TO_EVAL:])))
+                print ("Evals: Rew(Avg{}) >> {} done >> {}".format(EPS_TO_EVAL, np.mean(R_eval), np.mean(Done_eval)))
                 continue
+            # clever exploration part (Guided policy)
             # Get location of novel item -> Run motion planner to go to that location
             # Store state, action and reward
             if self.new_item_in_the_world is not None and self.guided_policy:
@@ -224,24 +233,24 @@ class Learner:
 
                     if done:
                         if episode % PRINT_EVERY == 0:
-                            print ("{}--EP >>{}, steps>>{},  Rew>>{}, done(20)>>{}, eps>>{} rho>>{} ".format(self.novelty_name, episode, episode_timesteps, reward_per_episode, np.mean(self.Done[-20:]), round(self.learning_agent._explore_eps, 3), round(self.rho, 3)))
+                            print ("{}--EP >>{}, steps>>{},  Rew>>{}, done({})>>{}, eps>>{} rho>>{} ".format(self.novelty_name, episode, episode_timesteps, reward_per_episode, NO_OF_DONES_TO_CHECK, np.mean(self.Done[-NO_OF_DONES_TO_CHECK:]), round(self.learning_agent._explore_eps, 3), round(self.rho, 3)))
                             print("\n")
                         self.Epsilons.append(self.learning_agent._explore_eps)
                         self.Rhos.append(self.rho)
                         self.Steps.append(episode_timesteps)
                         self.Done.append(1)
                         self.R.append(reward_per_episode)
-                        if episode > 70:
-                            if np.mean(self.R[-70:]) > 970: # check the average reward for last 70 episodes
+                        if episode > NO_OF_EPS_TO_CHECK:
+                            if np.mean(self.R[-NO_OF_EPS_TO_CHECK:]) > SCORE_TO_CHECK: # check the average reward for last 70 episodes
                                 # for future we can write an evaluation function here which runs a evaluation on the current policy.
-                                if  np.sum(self.Done[-50:]) > 46: # and check the success percentage of the agent > 80%.
+                                if  np.sum(self.Done[-NO_OF_DONES_TO_CHECK:]) > NO_OF_SUCCESSFUL_DONE: # and check the success percentage of the agent > 80%.
                                     print ("The agent has learned to reach the subgoal")
                                     # plt.show()
                                     return True  
                         break
                     elif episode_timesteps >= MAX_TIMESTEPS:
                         if episode % PRINT_EVERY == 0:
-                            print ("{}--EP >>{}, steps>>{},  Rew>>{}, done(20)>>{}, eps>>{} rho>>{} ".format(self.novelty_name, episode, episode_timesteps, reward_per_episode, np.mean(self.Done[-20:]), round(self.learning_agent._explore_eps, 3), round(self.rho, 3)))
+                            print ("{}--EP >>{}, steps>>{},  Rew>>{}, done({})>>{}, eps>>{} rho>>{} ".format(self.novelty_name, episode, episode_timesteps, reward_per_episode, NO_OF_DONES_TO_CHECK, np.mean(self.Done[-NO_OF_DONES_TO_CHECK:]), round(self.learning_agent._explore_eps, 3), round(self.rho, 3)))
                             print("\n")
                         self.Epsilons.append(self.learning_agent._explore_eps)
                         self.Rhos.append(self.rho)
