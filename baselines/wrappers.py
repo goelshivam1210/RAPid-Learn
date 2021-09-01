@@ -43,45 +43,38 @@ class RewardShaping(gym.RewardWrapper):
         elif appropriate_next_action == 'craft_pogo_stick':
             if self.env.inventory_items_quantity['pogo_stick'] - self.last_inventory['pogo_stick'] > 0:
                 reward += 1000
-        print(f"Best next action: {appropriate_next_action}")
-        if not appropriate_next_action:
-            print('stop')
         self.last_inventory = copy.deepcopy(self.env.inventory_items_quantity)
         return reward
 
     def _determine_appropriate_next_action(self):
-        # TODO: There's a bug in this condition, need to fix asap
         if sum([self.env.inventory_items_quantity['tree_tap'],
                 self.env.inventory_items_quantity['rubber'],
-                self.env.inventory_items_quantity['pogo_stick']]) < 1 and self.env.inventory_items_quantity[
-            'tree_log'] == 0 and self.env.inventory_items_quantity['plank'] < 4 and self.env.inventory_items_quantity[
-            'stick'] == 0:
-            if self.env.block_in_front_id != 6:
-                return 'approach_tree'
+                self.env.inventory_items_quantity['pogo_stick']]) < 1:
+            if self.env.inventory_items_quantity['stick'] == 0 or self.env.inventory_items_quantity['plank'] < 4:
+                if self.env.inventory_items_quantity['stick'] == 0:
+                    if self.env.inventory_items_quantity['plank'] < 2:
+                        if self.env.inventory_items_quantity['tree_log'] == 0:
+                            if self.env.block_in_front_id != 6:
+                                return 'approach_tree'
+                            else:
+                                return 'break_tree'
+                        else:
+                            return 'craft_plank'
+                    else:
+                        return 'craft_stick'
+                if self.env.inventory_items_quantity['plank'] < 4:
+                    if self.env.inventory_items_quantity['tree_log'] == 0:
+                        if self.env.block_in_front_id != 6:
+                            return 'approach_tree'
+                        else:
+                            return 'break_tree'
+                    else:
+                        return 'craft_plank'
             else:
-                return 'break_tree'
-
-        if sum([self.env.inventory_items_quantity['tree_tap'],
-                self.env.inventory_items_quantity['rubber'],
-                self.env.inventory_items_quantity['pogo_stick']]) < 1 and \
-                self.env.inventory_items_quantity['tree_log'] >= 1 and \
-                self.env.inventory_items_quantity['plank'] < 4:
-            return 'craft_plank'
-
-        if sum([self.env.inventory_items_quantity['stick'], self.env.inventory_items_quantity['tree_tap'],
-                self.env.inventory_items_quantity['rubber'],
-                self.env.inventory_items_quantity['pogo_stick']]) < 1 and \
-                self.env.inventory_items_quantity['plank'] >= 2 and self.env.inventory_items_quantity['stick'] == 0:
-            return 'craft_sticks'
-
-        if sum([self.env.inventory_items_quantity['tree_tap'],
-                self.env.inventory_items_quantity['rubber'],
-                self.env.inventory_items_quantity['pogo_stick']]) < 1 and \
-                self.env.inventory_items_quantity['stick'] >= 1 and self.env.inventory_items_quantity['plank'] >= 4:
-            if self.env.block_in_front_id != 1:
-                return 'approach_crafting_table'
-            else:
-                return 'craft_treetap'
+                if self.env.block_in_front_id != 1:
+                    return 'approach_crafting_table'
+                else:
+                    return 'craft_treetap'
 
         if sum([self.env.inventory_items_quantity['rubber'],
                 self.env.inventory_items_quantity['pogo_stick']]) < 1 and \
@@ -93,10 +86,24 @@ class RewardShaping(gym.RewardWrapper):
 
         if self.env.inventory_items_quantity['pogo_stick'] < 1 and self.env.inventory_items_quantity['rubber'] >= 1:
             if self.env.inventory_items_quantity['stick'] < 4:
-                return 'craft_stick'
+                if self.env.inventory_items_quantity['plank'] < 2:
+                    if self.env.inventory_items_quantity['tree_log'] == 0:
+                        if self.env.block_in_front_id != 6:
+                            return 'approach_tree'
+                        else:
+                            return 'break_tree'
+                    else:
+                        return 'craft_plank'
+                else:
+                    return 'craft_stick'
             if self.env.inventory_items_quantity['plank'] < 2:
-                return 'craft_plank'
-
+                if self.env.inventory_items_quantity['tree_log'] == 0:
+                    if self.env.block_in_front_id != 6:
+                        return 'approach_tree'
+                    else:
+                        return 'break_tree'
+                else:
+                    return 'craft_plank'
             if self.env.block_in_front_id != 1:
                 return 'approach_crafting_table'
             else:
