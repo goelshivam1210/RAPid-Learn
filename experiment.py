@@ -9,7 +9,6 @@ import argparse
 import copy
 import uuid
 from abc import abstractmethod, ABC
-import yaml
 import gym
 import logging
 
@@ -227,7 +226,7 @@ class BaselineExperiment(Experiment):
         from stable_baselines3.common.evaluation import evaluate_policy
         obs = self.env.reset()
         done = False
-        evaluate_policy(self.model, self.env, self.trials_pre_novelty, deterministic=False, render=False)
+        evaluate_policy(self.model, self.env, self.trials_pre_novelty, deterministic=False, render=self.render)
 
         self.env.close()
 
