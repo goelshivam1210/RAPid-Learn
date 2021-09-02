@@ -249,6 +249,8 @@ if __name__ == "__main__":
     ap.add_argument("-L", "--learner", default='epsilon-greedy', help="epsilon-greedy, smart-exploration", type=str)
     ap.add_argument("-T", "--transfer", default=None, type=str)
     ap.add_argument("-R", "--render", default=False, type=bool)
+    ap.add_argument("--load_model", default=False, type=str)
+
     args = vars(ap.parse_args())
     if args['experiment'] == 'baseline':
         experiment1 = BaselineExperiment(args)
