@@ -168,10 +168,10 @@ class BaselineExperiment(Experiment):
     HEADER_TRAIN = ['episode', 'timesteps', 'reward', 'success']
     HEADER_TEST = ['trial', 'episode', 'timesteps', 'reward', 'success']
     MAX_TIMESTEPS_PER_EPISODE = 500
-    TRAIN_EPISODES = 10
     SAVED_MODEL_NAME = 'model'
 
     def __init__(self, args):
+        self.TRAIN_EPISODES = args["train_episodes"]
         super(BaselineExperiment, self).__init__(args, self.HEADER_TRAIN, self.HEADER_TEST,
                                                  f"baseline-{self.TRAIN_EPISODES}episodes")
 
@@ -253,6 +253,7 @@ if __name__ == "__main__":
     ap.add_argument("-T", "--transfer", default=None, type=str)
     ap.add_argument("-R", "--render", default=False, type=bool)
     ap.add_argument("--load_model", default=False, type=str)
+    ap.add_argument("--train_episodes", default=100, type=int)
 
     args = vars(ap.parse_args())
     if args['experiment'] == 'baseline':
