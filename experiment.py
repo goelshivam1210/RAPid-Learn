@@ -237,6 +237,7 @@ def to_datestring(unixtime: int, format='%Y-%m-%d_%H:%M:%S'):
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
+    ap.add_argument("--experiment", default="rapid")
     ap.add_argument("-N", "--novelty_name", default='axetobreakeasy',
                     help="Novelty to inject: #axetobreakeasy #axetobreakhard #firecraftingtableeasy #firecraftingtablehard #rubbertree #axefirecteasy",
                     type=str)
@@ -249,5 +250,8 @@ if __name__ == "__main__":
     ap.add_argument("-T", "--transfer", default=None, type=str)
     ap.add_argument("-R", "--render", default=False, type=bool)
     args = vars(ap.parse_args())
-    experiment1 = RapidExperiment(args)
+    if args['experiment'] == 'baseline':
+        experiment1 = BaselineExperiment(args)
+    else:
+        experiment1 = RapidExperiment(args)
     experiment1.run()
