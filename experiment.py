@@ -9,7 +9,6 @@ import argparse
 import copy
 import uuid
 from abc import abstractmethod, ABC
-import yaml
 import gym
 import logging
 
