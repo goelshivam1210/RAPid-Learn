@@ -155,10 +155,6 @@ class StatePlaceholderWrapper(gym.ObservationWrapper):
         super(StatePlaceholderWrapper, self).__init__(env)
         self.n_placeholders_lidar = n_placeholders_lidar
         self.n_placeholders_inventory = n_placeholders_inventory
-        # This now contains air and wall, but not sure what to do about that.
-        self.selectable_items = [item_id
-                                 for item_name, item_id in self.env.items_id.items() if
-                                 item_name not in self.env.unselectable_items]
 
         # The last position is selected_item id
         low = np.array([0] * ((len(self.env.items_lidar) + n_placeholders_lidar) * self.env.num_beams) + [0] * (len(
@@ -172,5 +168,12 @@ class StatePlaceholderWrapper(gym.ObservationWrapper):
         self.env.observation_space = self.observation_space
 
     def observation(self, observation):
-        placeholders = np.zeros(self.n_placeholders)
-        return np.hstack([observation, placeholders])
+        lidar_observation = observation[0:len(self.env.items_lidar) * self.env.num_beams]
+        inventory_observation = observation[
+                                (len(self.env.items_lidar) + self.n_placeholders_lidar) * self.env.num_beams:-1]
+        selected_observation = [observation[-1]]
+
+        placeholders_lidar = np.zeros(self.n_placeholders_lidar)
+        placeholders_inventory = np.zeros(self.n_placeholders_inventory)
+        return np.hstack([lidar_observation, placeholders_lidar, inventory_observation, placeholders_inventory,
+                          selected_observation])
