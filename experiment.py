@@ -182,8 +182,8 @@ class BaselineExperiment(Experiment):
         from stable_baselines3 import PPO
         set_random_seed(42, using_cuda=True)
 
-        self.env = StatePlaceholderWrapper(self.env, n_placeholders_inventory=1, n_placeholders_lidar=1)
-        self.env = ActionPlaceholderWrapper(self.env, n_placeholders_actions=2)
+        self.env = StatePlaceholderWrapper(self.env, n_placeholders_inventory=2, n_placeholders_lidar=2)
+        self.env = ActionPlaceholderWrapper(self.env, n_placeholders_actions=3)
 
         self.load_model = args["load_model"]
         if self.load_model:
