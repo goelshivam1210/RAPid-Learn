@@ -182,6 +182,8 @@ class BaselineExperiment(Experiment):
         from stable_baselines3 import PPO
         set_random_seed(42, using_cuda=True)
 
+        self.env = StatePlaceholderWrapper(self.env, 2)
+
         self.load_model = args["load_model"]
         if self.load_model:
             print(f"Attempting to load pretrained model {self.load_model}.")
@@ -200,7 +202,6 @@ class BaselineExperiment(Experiment):
         self.env = Monitor(self.env, self._get_results_dir() + os.sep + to_datestring(time.time()) + "-monitor.csv",
                            allow_early_resets=True, info_keywords=('success', 'mode'))
         self.env = RewardShaping(self.env)
-        self.env = StatePlaceholderWrapper(self.env, 2)
         check_env(self.env, warn=True)
 
         # This is to use the env with all the wrappers for the model.
@@ -238,7 +239,7 @@ def to_datestring(unixtime: int, format='%Y-%m-%d_%H:%M:%S'):
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("--experiment", default="rapid")
+    ap.add_argument("--experiment", default="baseline")
     ap.add_argument("-N", "--novelty_name", default='axetobreakeasy',
                     help="Novelty to inject: #axetobreakeasy #axetobreakhard #firecraftingtableeasy #firecraftingtablehard #rubbertree #axefirecteasy",
                     type=str)
