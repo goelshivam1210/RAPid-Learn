@@ -44,15 +44,6 @@ class RewardShaping(gym.RewardWrapper):
             if self.env.inventory_items_quantity['pogo_stick'] - self.last_inventory['pogo_stick'] > 0:
                 reward += 1000
 
-        # punish breaking trees when that's not the thing to do next
-        elif self.appropriate_next_action != 'break_tree':
-            if self.env.inventory_items_quantity['tree_log'] - self.last_inventory['tree_log'] > 0:
-                reward -= 50
-
-        elif self.appropriate_next_action != 'craft_stick':
-            if self.env.inventory_items_quantity['stick'] - self.last_inventory['stick'] > 0:
-                reward -= 50
-
         self.last_inventory = copy.deepcopy(self.env.inventory_items_quantity)
         self.appropriate_next_action = self._determine_appropriate_next_action()
         return reward
