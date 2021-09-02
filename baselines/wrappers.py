@@ -157,11 +157,13 @@ class StatePlaceholderWrapper(gym.ObservationWrapper):
         self.n_placeholders_inventory = n_placeholders_inventory
 
         # The last position is selected_item id
-        low = np.array([0] * ((len(self.env.items_lidar) + n_placeholders_lidar) * self.env.num_beams) + [0] * (len(
-            self.inventory_items_quantity) + n_placeholders_inventory) + [0])
+        n_lidar_obs = (len(self.env.items_lidar) + n_placeholders_lidar) * self.env.num_beams
+        n_inventory_obs = len(self.env.inventory_items_quantity) + n_placeholders_inventory
+
+        low = np.array([0] * n_lidar_obs + [0] * n_inventory_obs + [0])
         high = np.array(
-            [self.env.max_beam_range] * (len(self.env.items_lidar) + n_placeholders_lidar) * self.env.num_beams +
-            [len(self.env.items)] * (len(self.env.inventory_items_quantity) + n_placeholders_inventory) +  # inventory items
+            [self.env.max_beam_range] * n_lidar_obs +
+            [len(self.env.items)] * n_inventory_obs +  # inventory items
             [len(self.env.items) + self.n_placeholders_inventory])  # selected item
 
         self.observation_space = spaces.Box(low, high, dtype=int)
@@ -170,10 +172,10 @@ class StatePlaceholderWrapper(gym.ObservationWrapper):
     def observation(self, observation):
         lidar_observation = observation[0:len(self.env.items_lidar) * self.env.num_beams]
         inventory_observation = observation[
-                                (len(self.env.items_lidar) + self.n_placeholders_lidar) * self.env.num_beams:-1]
+                                len(self.env.items_lidar) * self.env.num_beams:-1]
         selected_observation = [observation[-1]]
 
-        placeholders_lidar = np.zeros(self.n_placeholders_lidar)
+        placeholders_lidar = np.zeros(self.n_placeholders_lidar * self.env.num_beams)
         placeholders_inventory = np.zeros(self.n_placeholders_inventory)
         return np.hstack([lidar_observation, placeholders_lidar, inventory_observation, placeholders_inventory,
                           selected_observation])
@@ -186,7 +188,8 @@ class ActionPlaceholderWrapper(gym.ActionWrapper):
         self.env.action_space = self.action_space
 
     def action(self, action):
-        return action
+        # need to forbid trying to take the phantom actions here
+        return min(len(self.env.actions_id) - 1, action)
 
     def reverse_action(self, action):
-        return action
+        return min(len(self.env.actions_id) - 1, action)
