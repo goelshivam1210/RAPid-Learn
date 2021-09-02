@@ -177,3 +177,16 @@ class StatePlaceholderWrapper(gym.ObservationWrapper):
         placeholders_inventory = np.zeros(self.n_placeholders_inventory)
         return np.hstack([lidar_observation, placeholders_lidar, inventory_observation, placeholders_inventory,
                           selected_observation])
+
+class ActionPlaceholderWrapper(gym.ActionWrapper):
+    def __init__(self, env, n_placeholders_actions=0):
+        super(ActionPlaceholderWrapper, self).__init__(env)
+        self.n_placeholders_actions = n_placeholders_actions
+        self.action_space = spaces.Discrete(len(self.env.actions_id) + self.n_placeholders_actions)
+        self.env.action_space = self.action_space
+
+    def action(self, action):
+        return action
+
+    def reverse_action(self, action):
+        return action
