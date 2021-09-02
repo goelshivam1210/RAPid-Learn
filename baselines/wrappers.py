@@ -14,11 +14,11 @@ class RewardShaping(gym.RewardWrapper):
         # Approach tree
         if self.appropriate_next_action == 'approach_tree':
             if self.env.block_in_front_id == 6:
-                reward += 10
+                reward += 50
         # Break tree
         elif self.appropriate_next_action == 'break_tree':
             if self.env.inventory_items_quantity['tree_log'] - self.last_inventory['tree_log'] > 0:
-                reward += 20
+                reward += 50
         # Craft planks
         elif self.appropriate_next_action == 'craft_plank':
             if self.env.inventory_items_quantity['plank'] - self.last_inventory['plank'] > 0:
@@ -30,7 +30,7 @@ class RewardShaping(gym.RewardWrapper):
         # approach crafting table
         elif self.appropriate_next_action == 'approach_crafting_table':
             if self.env.block_in_front_id == 1:
-                reward += 10
+                reward += 50
         # craft treetap
         elif self.appropriate_next_action == 'craft_treetap':
             if self.env.inventory_items_quantity['tree_tap'] - self.last_inventory['tree_tap'] > 0:
@@ -43,6 +43,16 @@ class RewardShaping(gym.RewardWrapper):
         elif self.appropriate_next_action == 'craft_pogo_stick':
             if self.env.inventory_items_quantity['pogo_stick'] - self.last_inventory['pogo_stick'] > 0:
                 reward += 1000
+
+        # punish breaking trees when that's not the thing to do next
+        elif self.appropriate_next_action != 'break_tree':
+            if self.env.inventory_items_quantity['tree_log'] - self.last_inventory['tree_log'] > 0:
+                reward -= 50
+
+        elif self.appropriate_next_action != 'craft_stick':
+            if self.env.inventory_items_quantity['stick'] - self.last_inventory['stick'] > 0:
+                reward -= 50
+
         self.last_inventory = copy.deepcopy(self.env.inventory_items_quantity)
         self.appropriate_next_action = self._determine_appropriate_next_action()
         return reward
