@@ -200,6 +200,7 @@ class BaselineExperiment(Experiment):
         self.env = Monitor(self.env, self._get_results_dir() + os.sep + to_datestring(time.time()) + "-monitor.csv",
                            allow_early_resets=True, info_keywords=('success', 'mode'))
         self.env = RewardShaping(self.env)
+        self.env = StatePlaceholderWrapper(self.env, 2)
         check_env(self.env, warn=True)
 
         # This is to use the env with all the wrappers for the model.

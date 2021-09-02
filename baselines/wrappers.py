@@ -1,5 +1,8 @@
 import gym
 import copy
+import numpy as np
+from gym import spaces
+
 
 class RewardShaping(gym.RewardWrapper):
     """Add intermediate rewards for reaching useful subgoals."""
@@ -111,7 +114,6 @@ class RewardShaping(gym.RewardWrapper):
             else:
                 return 'craft_pogo_stick'
 
-
 class EpisodicWrapper(gym.Wrapper):
     """Terminate the episode and reset the environment after a number of timesteps has passed"""
     def __init__(self, env, timesteps_per_episode):
@@ -147,3 +149,28 @@ class InfoExtenderWrapper(gym.Wrapper):
         info['mode'] = self.env.metadata['mode']
         info['success'] = str(self.env.last_done)
         return next_state, reward, done, info
+
+class StatePlaceholderWrapper(gym.ObservationWrapper):
+    def __init__(self, env, n_placeholders_inventory=0, n_placeholders_lidar=0):
+        super(StatePlaceholderWrapper, self).__init__(env)
+        self.n_placeholders_lidar = n_placeholders_lidar
+        self.n_placeholders_inventory = n_placeholders_inventory
+        # This now contains air and wall, but not sure what to do about that.
+        self.selectable_items = [item_id
+                                 for item_name, item_id in self.env.items_id.items() if
+                                 item_name not in self.env.unselectable_items]
+
+        # The last position is selected_item id
+        low = np.array([0] * ((len(self.env.items_lidar) + n_placeholders_lidar) * self.env.num_beams) + [0] * (len(
+            self.inventory_items_quantity) + n_placeholders_inventory) + [0])
+        high = np.array(
+            [self.env.max_beam_range] * (len(self.env.items_lidar) + n_placeholders_lidar) * self.env.num_beams +
+            [len(self.env.items)] * (len(self.env.inventory_items_quantity) + n_placeholders_inventory) +  # inventory items
+            [len(self.env.items) + self.n_placeholders_inventory])  # selected item
+
+        self.observation_space = spaces.Box(low, high, dtype=int)
+        self.env.observation_space = self.observation_space
+
+    def observation(self, observation):
+        placeholders = np.zeros(self.n_placeholders)
+        return np.hstack([observation, placeholders])
