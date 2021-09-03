@@ -187,6 +187,8 @@ class BaselineExperiment(Experiment):
         self.env = ActionPlaceholderWrapper(self.env, n_placeholders_actions=3)
 
         self.load_model = args["load_model"]
+        self.reward_shaping = args["reward_shaping"]
+
         if self.load_model:
             print(f"Attempting to load pretrained model {self.load_model}.")
             self.experiment_id = self.load_model
@@ -201,7 +203,8 @@ class BaselineExperiment(Experiment):
         self.env = EpisodicWrapper(self.env, self.MAX_TIMESTEPS_PER_EPISODE)
         # self.env = RecordEpisodeStatsWrapper(self.env)
         self.env = InfoExtenderWrapper(self.env)
-        self.env = RewardShaping(self.env)
+        if self.reward_shaping:
+            self.env = RewardShaping(self.env)
         self.env = Monitor(self.env, self._get_results_dir() + os.sep + to_datestring(time.time()) + "-monitor.csv",
                            allow_early_resets=True, info_keywords=('success', 'mode'))
         check_env(self.env, warn=True)
@@ -257,6 +260,7 @@ if __name__ == "__main__":
     ap.add_argument("-R", "--render", default=False, type=bool)
     ap.add_argument("--load_model", default=False, type=str)
     ap.add_argument("--train_episodes", default=100, type=int)
+    ap.add_argument("--reward_shaping", default=False, type=bool)
 
     args = vars(ap.parse_args())
     if args['experiment'] == 'baseline':
