@@ -206,6 +206,7 @@ class BaselineExperiment(Experiment):
         # self.env = RecordEpisodeStatsWrapper(self.env)
         self.env = InfoExtenderWrapper(self.env)
         if self.reward_shaping:
+            print("Reward shaping: ON")
             self.env = RewardShaping(self.env)
         self.env = Monitor(self.env, self._get_results_dir() + os.sep + to_datestring(time.time()) + "-monitor.csv",
                            allow_early_resets=True, info_keywords=('success', 'mode'))
