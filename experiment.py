@@ -173,8 +173,13 @@ class BaselineExperiment(Experiment):
 
     def __init__(self, args):
         self.TRAIN_EPISODES = args["train_episodes"]
+        self.load_model = args["load_model"]
+        self.reward_shaping = args["reward_shaping"]
+        self.algorithm = args["algorithm"]
+
         super(BaselineExperiment, self).__init__(args, self.HEADER_TRAIN, self.HEADER_TEST,
-                                                 f"baseline-{self.TRAIN_EPISODES}episodes")
+                                                 f"{to_datestring(time.time())}-baseline-{self.algorithm}-{self.TRAIN_EPISODES}episodes-"
+                                                 f"{'rewardshapingon' if self.reward_shaping else 'rewardshapingoff'}")
 
         # Import these here so you can run RAPID experiments without having to have stable baselines installed
         from stable_baselines3.common.monitor import Monitor
@@ -185,9 +190,6 @@ class BaselineExperiment(Experiment):
 
         self.env = StatePlaceholderWrapper(self.env, n_placeholders_inventory=2, n_placeholders_lidar=2)
         self.env = ActionPlaceholderWrapper(self.env, n_placeholders_actions=3)
-
-        self.load_model = args["load_model"]
-        self.reward_shaping = args["reward_shaping"]
 
         if self.load_model:
             print(f"Attempting to load pretrained model {self.load_model}.")
@@ -261,6 +263,7 @@ if __name__ == "__main__":
     ap.add_argument("--load_model", default=False, type=str)
     ap.add_argument("--train_episodes", default=100, type=int)
     ap.add_argument("--reward_shaping", default=False, type=bool)
+    ap.add_argument("--algorithm", default="PPO", type=str)
 
     args = vars(ap.parse_args())
     if args['experiment'] == 'baseline':
