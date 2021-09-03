@@ -39,6 +39,14 @@ class RewardShaping(gym.RewardWrapper):
             if self.env.inventory_items_quantity['pogo_stick'] - self.last_inventory['pogo_stick'] > 0:
                 reward += 1000
 
+        # don't give out more reward if the env gets unsolvable (all trees are cut down)
+        if self.env.items_quantity['tree_log'] == 0:
+            if self.env.inventory_items_quantity['pogo_stick'] == 0:
+                if self.env.inventory_items_quantity['rubber'] == 0 or (
+                        self.env.inventory_items_quantity['plank'] < 2 or self.env.inventory_items_quantity[
+                    'stick'] < 4):
+                    reward = -1
+
         self.last_inventory = copy.deepcopy(self.env.inventory_items_quantity)
         self.appropriate_next_action = self._determine_appropriate_next_action()
         return reward
