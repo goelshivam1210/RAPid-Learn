@@ -267,7 +267,7 @@ if __name__ == "__main__":
     ap.add_argument("--train_episodes", default=100, type=int)
     ap.add_argument("--reward_shaping", dest="reward_shaping", action="store_true")
     ap.add_argument("--no_reward_shaping", dest="reward_shaping", action="store_false")
-    parser.set_defaults(reward_shaping=True)
+    ap.set_defaults(reward_shaping=True)
 
     ap.add_argument("--algorithm", default="PPO", type=str)
 
