@@ -14,12 +14,8 @@ class RewardShaping(gym.RewardWrapper):
     def reward(self, reward):
         reward = -1
 
-        # Approach tree
-        if self.appropriate_next_action == 'approach_tree':
-            if self.env.block_in_front_id == 6:
-                reward += 50
         # Break tree
-        elif self.appropriate_next_action == 'break_tree':
+        if self.appropriate_next_action == 'break_tree':
             if self.env.inventory_items_quantity['tree_log'] - self.last_inventory['tree_log'] > 0:
                 reward += 50
         # Craft planks
@@ -29,10 +25,6 @@ class RewardShaping(gym.RewardWrapper):
         # craft sticks
         elif self.appropriate_next_action == 'craft_sticks':
             if self.env.inventory_items_quantity['stick'] - self.last_inventory['stick'] > 0:
-                reward += 50
-        # approach crafting table
-        elif self.appropriate_next_action == 'approach_crafting_table':
-            if self.env.block_in_front_id == 1:
                 reward += 50
         # craft treetap
         elif self.appropriate_next_action == 'craft_treetap':
@@ -59,10 +51,7 @@ class RewardShaping(gym.RewardWrapper):
                 if self.env.inventory_items_quantity['stick'] == 0:
                     if self.env.inventory_items_quantity['plank'] < 2:
                         if self.env.inventory_items_quantity['tree_log'] == 0:
-                            if self.env.block_in_front_id != 6:
-                                return 'approach_tree'
-                            else:
-                                return 'break_tree'
+                            return 'break_tree'
                         else:
                             return 'craft_plank'
                     else:
@@ -70,49 +59,31 @@ class RewardShaping(gym.RewardWrapper):
                 if self.env.inventory_items_quantity['plank'] < 4:
                     if self.env.inventory_items_quantity['tree_log'] == 0:
                         if self.env.block_in_front_id != 6:
-                            return 'approach_tree'
-                        else:
                             return 'break_tree'
                     else:
                         return 'craft_plank'
             else:
-                if self.env.block_in_front_id != 1:
-                    return 'approach_crafting_table'
-                else:
-                    return 'craft_treetap'
+                return 'craft_treetap'
 
         if sum([self.env.inventory_items_quantity['rubber'],
                 self.env.inventory_items_quantity['pogo_stick']]) < 1 and \
                 self.env.inventory_items_quantity['tree_tap'] >= 1:
-            if self.env.block_in_front_id != 6:
-                return 'approach_tree'
-            else:
-                return 'extract_rubber'
-
+            return 'extract_rubber'
         if self.env.inventory_items_quantity['pogo_stick'] < 1 and self.env.inventory_items_quantity['rubber'] >= 1:
             if self.env.inventory_items_quantity['stick'] < 4:
                 if self.env.inventory_items_quantity['plank'] < 2:
                     if self.env.inventory_items_quantity['tree_log'] == 0:
-                        if self.env.block_in_front_id != 6:
-                            return 'approach_tree'
-                        else:
-                            return 'break_tree'
+                        return 'break_tree'
                     else:
                         return 'craft_plank'
                 else:
                     return 'craft_stick'
             if self.env.inventory_items_quantity['plank'] < 2:
                 if self.env.inventory_items_quantity['tree_log'] == 0:
-                    if self.env.block_in_front_id != 6:
-                        return 'approach_tree'
-                    else:
-                        return 'break_tree'
+                    return 'break_tree'
                 else:
                     return 'craft_plank'
-            if self.env.block_in_front_id != 1:
-                return 'approach_crafting_table'
-            else:
-                return 'craft_pogo_stick'
+            return 'craft_pogo_stick'
 
 class EpisodicWrapper(gym.Wrapper):
     """Terminate the episode and reset the environment after a number of timesteps has passed"""
