@@ -208,6 +208,8 @@ class BaselineExperiment(Experiment):
         if self.reward_shaping:
             print("Reward shaping: ON")
             self.env = RewardShaping(self.env)
+        else:
+            print("Reward shaping: OFF")
         self.env = Monitor(self.env, self._get_results_dir() + os.sep + to_datestring(time.time()) + "-monitor.csv",
                            allow_early_resets=True, info_keywords=('success', 'mode'))
         check_env(self.env, warn=True)
@@ -263,7 +265,10 @@ if __name__ == "__main__":
     ap.add_argument("-R", "--render", default=False, type=bool)
     ap.add_argument("--load_model", default=False, type=str)
     ap.add_argument("--train_episodes", default=100, type=int)
-    ap.add_argument("--reward_shaping", default=False, type=bool)
+    ap.add_argument("--reward_shaping", dest="reward_shaping", action="store_true")
+    ap.add_argument("--no_reward_shaping", dest="reward_shaping", action="store_false")
+    parser.set_defaults(reward_shaping=True)
+
     ap.add_argument("--algorithm", default="PPO", type=str)
 
     args = vars(ap.parse_args())
