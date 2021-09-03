@@ -12,6 +12,7 @@ from abc import abstractmethod, ABC
 import gym
 import logging
 
+from stable_baselines3.common.callbacks import CheckpointCallback
 
 from brain import Brain
 from baselines.wrappers import *
@@ -220,7 +221,10 @@ class BaselineExperiment(Experiment):
     def train(self):
         print(f"Training model for {self.TRAIN_EPISODES} episodes")
         self.env.metadata['mode'] = 'train'
-        self.model.learn(total_timesteps=self.TRAIN_EPISODES * self.MAX_TIMESTEPS_PER_EPISODE)
+        checkpoint_callback = CheckpointCallback(save_freq=self.MAX_TIMESTEPS_PER_EPISODE * 500, save_path=self.results_dir + os.sep + 'checkpoints',
+                                                 name_prefix=BaselineExperiment.SAVED_MODEL_NAME)
+        self.model.learn(total_timesteps=self.TRAIN_EPISODES * self.MAX_TIMESTEPS_PER_EPISODE,
+                         callback=checkpoint_callback)
         self.model.save(self.results_dir + os.sep + BaselineExperiment.SAVED_MODEL_NAME)
 
     def evaluate(self):
