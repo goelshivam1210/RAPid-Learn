@@ -217,6 +217,7 @@ class BaselineExperiment(Experiment):
             print(f"Skipping training because pretrained model {self.load_model} was supplied.")
 
         self.evaluate()
+        self.env.close()
 
     def train(self):
         print(f"Training model for {self.TRAIN_EPISODES} episodes")
@@ -234,8 +235,6 @@ class BaselineExperiment(Experiment):
         obs = self.env.reset()
         done = False
         evaluate_policy(self.model, self.env, self.trials_pre_novelty, deterministic=False, render=self.render)
-
-        self.env.close()
 
 
 def to_datestring(unixtime: int, format='%Y-%m-%d_%H:%M:%S'):
