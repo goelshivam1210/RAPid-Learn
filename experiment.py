@@ -12,6 +12,7 @@ from abc import abstractmethod, ABC
 import gym
 import logging
 
+from stable_baselines3.common.callbacks import CheckpointCallback
 
 from brain import Brain
 from baselines.wrappers import *
@@ -168,12 +169,17 @@ class BaselineExperiment(Experiment):
     HEADER_TRAIN = ['episode', 'timesteps', 'reward', 'success']
     HEADER_TEST = ['trial', 'episode', 'timesteps', 'reward', 'success']
     MAX_TIMESTEPS_PER_EPISODE = 500
-    TRAIN_EPISODES = 10
     SAVED_MODEL_NAME = 'model'
 
     def __init__(self, args):
+        self.TRAIN_EPISODES = args["train_episodes"]
+        self.load_model = args["load_model"]
+        self.reward_shaping = args["reward_shaping"]
+        self.algorithm = args["algorithm"]
+
         super(BaselineExperiment, self).__init__(args, self.HEADER_TRAIN, self.HEADER_TEST,
-                                                 f"baseline-{self.TRAIN_EPISODES}episodes")
+                                                 f"{to_datestring(time.time())}-baseline-{self.algorithm}-{self.TRAIN_EPISODES}episodes-"
+                                                 f"{'rewardshapingon' if self.reward_shaping else 'rewardshapingoff'}")
 
         # Import these here so you can run RAPID experiments without having to have stable baselines installed
         from stable_baselines3.common.monitor import Monitor
@@ -182,7 +188,9 @@ class BaselineExperiment(Experiment):
         from stable_baselines3 import PPO
         set_random_seed(42, using_cuda=True)
 
-        self.load_model = args["load_model"]
+        self.env = StatePlaceholderWrapper(self.env, n_placeholders_inventory=2, n_placeholders_lidar=2)
+        self.env = ActionPlaceholderWrapper(self.env, n_placeholders_actions=3)
+
         if self.load_model:
             print(f"Attempting to load pretrained model {self.load_model}.")
             self.experiment_id = self.load_model
@@ -197,9 +205,13 @@ class BaselineExperiment(Experiment):
         self.env = EpisodicWrapper(self.env, self.MAX_TIMESTEPS_PER_EPISODE)
         # self.env = RecordEpisodeStatsWrapper(self.env)
         self.env = InfoExtenderWrapper(self.env)
+        if self.reward_shaping:
+            print("Reward shaping: ON")
+            self.env = RewardShaping(self.env)
+        else:
+            print("Reward shaping: OFF")
         self.env = Monitor(self.env, self._get_results_dir() + os.sep + to_datestring(time.time()) + "-monitor.csv",
                            allow_early_resets=True, info_keywords=('success', 'mode'))
-        self.env = RewardShaping(self.env)
         check_env(self.env, warn=True)
 
         # This is to use the env with all the wrappers for the model.
@@ -213,11 +225,15 @@ class BaselineExperiment(Experiment):
             print(f"Skipping training because pretrained model {self.load_model} was supplied.")
 
         self.evaluate()
+        self.env.close()
 
     def train(self):
         print(f"Training model for {self.TRAIN_EPISODES} episodes")
         self.env.metadata['mode'] = 'train'
-        self.model.learn(total_timesteps=self.TRAIN_EPISODES * self.MAX_TIMESTEPS_PER_EPISODE)
+        checkpoint_callback = CheckpointCallback(save_freq=self.MAX_TIMESTEPS_PER_EPISODE * 500, save_path=self.results_dir + os.sep + 'checkpoints',
+                                                 name_prefix=BaselineExperiment.SAVED_MODEL_NAME)
+        self.model.learn(total_timesteps=self.TRAIN_EPISODES * self.MAX_TIMESTEPS_PER_EPISODE,
+                         callback=checkpoint_callback)
         self.model.save(self.results_dir + os.sep + BaselineExperiment.SAVED_MODEL_NAME)
 
     def evaluate(self):
@@ -227,8 +243,6 @@ class BaselineExperiment(Experiment):
         obs = self.env.reset()
         done = False
         evaluate_policy(self.model, self.env, self.trials_pre_novelty, deterministic=False, render=self.render)
-
-        self.env.close()
 
 
 def to_datestring(unixtime: int, format='%Y-%m-%d_%H:%M:%S'):
@@ -250,6 +264,12 @@ if __name__ == "__main__":
     ap.add_argument("-T", "--transfer", default=None, type=str)
     ap.add_argument("-R", "--render", default=False, type=bool)
     ap.add_argument("--load_model", default=False, type=str)
+    ap.add_argument("--train_episodes", default=100, type=int)
+    ap.add_argument("--reward_shaping", dest="reward_shaping", action="store_true")
+    ap.add_argument("--no_reward_shaping", dest="reward_shaping", action="store_false")
+    ap.set_defaults(reward_shaping=True)
+
+    ap.add_argument("--algorithm", default="PPO", type=str)
 
     args = vars(ap.parse_args())
     if args['experiment'] == 'baseline':
