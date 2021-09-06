@@ -12,11 +12,18 @@ from abc import abstractmethod, ABC
 import gym
 import logging
 
-from stable_baselines3.common.callbacks import CheckpointCallback
+from stable_baselines3.common.callbacks import CheckpointCallback, EvalCallback
+from stable_baselines3.common.monitor import Monitor
+from stable_baselines3.common.env_checker import check_env
+from stable_baselines3.common.utils import set_random_seed
+from stable_baselines3 import PPO
+set_random_seed(42, using_cuda=True)
 
+from baselines.util import get_difference_in_obs_action_space
 from brain import Brain
 from baselines.wrappers import *
 from params import EPS_TO_EVAL
+from gym_novel_gridworlds.novelty_wrappers import inject_novelty
 
 ENV_ID = 'NovelGridworld-Pogostick-v1'  # always remains the same.
 
@@ -170,6 +177,10 @@ class BaselineExperiment(Experiment):
     HEADER_TEST = ['trial', 'episode', 'timesteps', 'reward', 'success']
     MAX_TIMESTEPS_PER_EPISODE = 500
     SAVED_MODEL_NAME = 'model'
+    N_PLACEHOLDERS_INVENTORY = 2
+    N_PLACEHOLDERS_LIDAR = 2
+    N_PLACEHOLDERS_ACTIONS = 3
+    EVAL_EVERY_N_EPISODES = 200
 
     def __init__(self, args):
         self.TRAIN_EPISODES = args["train_episodes"]
@@ -181,21 +192,15 @@ class BaselineExperiment(Experiment):
                                                  f"{to_datestring(time.time())}-baseline-{self.algorithm}-{self.TRAIN_EPISODES}episodes-"
                                                  f"{'rewardshapingon' if self.reward_shaping else 'rewardshapingoff'}")
 
-        # Import these here so you can run RAPID experiments without having to have stable baselines installed
-        from stable_baselines3.common.monitor import Monitor
-        from stable_baselines3.common.env_checker import check_env
-        from stable_baselines3.common.utils import set_random_seed
-        from stable_baselines3 import PPO
-        set_random_seed(42, using_cuda=True)
-
-        self.env = StatePlaceholderWrapper(self.env, n_placeholders_inventory=2, n_placeholders_lidar=2)
-        self.env = ActionPlaceholderWrapper(self.env, n_placeholders_actions=3)
+        self.env = StatePlaceholderWrapper(self.env, n_placeholders_inventory=self.N_PLACEHOLDERS_INVENTORY,
+                                           n_placeholders_lidar=self.N_PLACEHOLDERS_LIDAR)
+        self.env = ActionPlaceholderWrapper(self.env, n_placeholders_actions=self.N_PLACEHOLDERS_ACTIONS)
 
         if self.load_model:
             print(f"Attempting to load pretrained model {self.load_model}.")
-            self.experiment_id = self.load_model
+            self.experiment_id = self.load_model.split(os.sep)[0]
             self.model = PPO.load(
-                self._get_results_dir() + os.sep + BaselineExperiment.SAVED_MODEL_NAME)
+                Experiment.DATA_DIR + os.sep + self.load_model)
         else:
             os.makedirs(self._get_results_dir(), exist_ok=True)
             self.model = PPO("MlpPolicy", self.env, verbose=0)
@@ -210,9 +215,6 @@ class BaselineExperiment(Experiment):
             self.env = RewardShaping(self.env)
         else:
             print("Reward shaping: OFF")
-        self.env = Monitor(self.env, self._get_results_dir() + os.sep + to_datestring(time.time()) + "-monitor.csv",
-                           allow_early_resets=True, info_keywords=('success', 'mode'))
-        check_env(self.env, warn=True)
 
         # This is to use the env with all the wrappers for the model.
         self.model.set_env(self.env)
@@ -229,8 +231,13 @@ class BaselineExperiment(Experiment):
 
     def train(self):
         print(f"Training model for {self.TRAIN_EPISODES} episodes")
+        self.env = Monitor(self.env, self._get_results_dir() + os.sep + to_datestring(time.time()) + "-monitor.csv",
+                           allow_early_resets=True, info_keywords=('success', 'mode'))
+        check_env(self.env, warn=True)
+
         self.env.metadata['mode'] = 'train'
-        checkpoint_callback = CheckpointCallback(save_freq=self.MAX_TIMESTEPS_PER_EPISODE * 500, save_path=self.results_dir + os.sep + 'checkpoints',
+        checkpoint_callback = CheckpointCallback(save_freq=self.MAX_TIMESTEPS_PER_EPISODE * 500,
+                                                 save_path=self._get_results_dir() + os.sep + 'checkpoints',
                                                  name_prefix=BaselineExperiment.SAVED_MODEL_NAME)
         self.model.learn(total_timesteps=self.TRAIN_EPISODES * self.MAX_TIMESTEPS_PER_EPISODE,
                          callback=checkpoint_callback)
@@ -238,11 +245,46 @@ class BaselineExperiment(Experiment):
 
     def evaluate(self):
         print("Evaluating model.")
-        self.env.metadata['mode'] = 'test-prenovelty'
+        # Evaluate pre novelty
         from stable_baselines3.common.evaluation import evaluate_policy
-        obs = self.env.reset()
-        done = False
-        evaluate_policy(self.model, self.env, self.trials_pre_novelty, deterministic=False, render=self.render)
+
+        # Recreate env to inject novelty
+        self.env = gym.make(ENV_ID)
+        self.env = inject_novelty(self.env, self.novelty_name)
+
+        # Wrap env with correct placeholder numbers
+        d_obs_inventory, d_obs_lidar, d_actions = get_difference_in_obs_action_space(self.novelty_name)
+        self.env = StatePlaceholderWrapper(self.env,
+                                           n_placeholders_inventory=self.N_PLACEHOLDERS_INVENTORY - d_obs_inventory,
+                                           n_placeholders_lidar=self.N_PLACEHOLDERS_LIDAR - d_obs_lidar)
+        self.env = ActionPlaceholderWrapper(self.env, n_placeholders_actions=self.N_PLACEHOLDERS_ACTIONS - d_actions)
+
+        # Rewrap the environment with everything else
+        self.env = EpisodicWrapper(self.env, self.MAX_TIMESTEPS_PER_EPISODE)
+        self.env = InfoExtenderWrapper(self.env)
+        if self.reward_shaping:
+            print("Reward shaping: ON")
+            self.env = RewardShaping(self.env)
+        else:
+            print("Reward shaping: OFF")
+        self.env = Monitor(self.env, f"{self._get_results_dir() + os.sep + to_datestring(time.time())}-{self.novelty_name}-monitor.csv",
+                           allow_early_resets=True, info_keywords=('success', 'mode'))
+        check_env(self.env, warn=True)
+        self.env.metadata['mode'] = 'learn-postnovelty'
+
+        self.model.set_env(self.env)
+
+        print(f"Evaluation - Model: {self.algorithm}, NOVELTY: {self.novelty_name}, EPISODES: {self.TRAIN_EPISODES}")
+        checkpoint_callback = CheckpointCallback(save_freq=self.MAX_TIMESTEPS_PER_EPISODE * self.EVAL_EVERY_N_EPISODES,
+                                                 save_path=self._get_results_dir() + os.sep + self.novelty_name + '-checkpoints',
+                                                 name_prefix=self.novelty_name + "-" + BaselineExperiment.SAVED_MODEL_NAME)
+        eval_callback = EvalCallback(self.env, n_eval_episodes=10, eval_freq=self.MAX_TIMESTEPS_PER_EPISODE * self.EVAL_EVERY_N_EPISODES)
+        self.model.learn(total_timesteps=self.TRAIN_EPISODES * self.MAX_TIMESTEPS_PER_EPISODE,
+                         callback=[checkpoint_callback, eval_callback])
+        self.model.save(self.results_dir + os.sep + "eval-" + self.novelty_name + "-" + BaselineExperiment.SAVED_MODEL_NAME)
+
+        # evaluate the final policy
+        evaluate_policy(self.model, self.env, self.trials_post_learning, deterministic=False, render=self.render)
 
 
 def to_datestring(unixtime: int, format='%Y-%m-%d_%H:%M:%S'):
