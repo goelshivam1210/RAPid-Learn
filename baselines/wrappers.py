@@ -142,8 +142,8 @@ class StatePlaceholderWrapper(gym.ObservationWrapper):
         low = np.array([0] * n_lidar_obs + [0] * n_inventory_obs + [0])
         high = np.array(
             [self.env.max_beam_range] * n_lidar_obs +
-            [len(self.env.items)] * n_inventory_obs +  # inventory items
-            [len(self.env.items) + self.n_placeholders_inventory])  # selected item
+            [len(self.env.inventory_items_quantity) + self.n_placeholders_inventory] * n_inventory_obs +  # inventory items
+            [len(self.env.inventory_items_quantity) + self.n_placeholders_inventory])  # selected item
 
         self.observation_space = spaces.Box(low, high, dtype=int)
         self.env.observation_space = self.observation_space
