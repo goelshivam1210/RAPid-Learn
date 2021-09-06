@@ -251,7 +251,7 @@ def to_datestring(unixtime: int, format='%Y-%m-%d_%H:%M:%S'):
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("--experiment", default="baseline")
+    ap.add_argument("--experiment", default="rapid")
     ap.add_argument("-N", "--novelty_name", default='axetobreakeasy',
                     help="Novelty to inject: #axetobreakeasy #axetobreakhard #firecraftingtableeasy #firecraftingtablehard #rubbertree #axefirecteasy",
                     type=str)
