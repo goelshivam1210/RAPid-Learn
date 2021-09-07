@@ -231,22 +231,27 @@ class BaselineExperiment(Experiment):
 
     def train(self):
         print(f"Training model for {self.TRAIN_EPISODES} episodes")
-        self.env = Monitor(self.env, self._get_results_dir() + os.sep + to_datestring(time.time()) + "-monitor.csv",
+        self.env.metadata['mode'] = 'train'
+        self.env = Monitor(self.env, self._get_results_dir() + os.sep + "prenovelty-monitor.csv",
                            allow_early_resets=True, info_keywords=('success', 'mode'))
         check_env(self.env, warn=True)
 
-        self.env.metadata['mode'] = 'train'
         checkpoint_callback = CheckpointCallback(save_freq=self.MAX_TIMESTEPS_PER_EPISODE * 500,
-                                                 save_path=self._get_results_dir() + os.sep + 'checkpoints',
+                                                 save_path=self._get_results_dir() + os.sep + 'prenovelty-checkpoints',
                                                  name_prefix=BaselineExperiment.SAVED_MODEL_NAME)
+        self.model.set_env(self.env)
         self.model.learn(total_timesteps=self.TRAIN_EPISODES * self.MAX_TIMESTEPS_PER_EPISODE,
                          callback=checkpoint_callback)
-        self.model.save(self.results_dir + os.sep + BaselineExperiment.SAVED_MODEL_NAME)
+        self.model.save(self.results_dir + os.sep + 'prenovelty_model')
 
     def evaluate(self):
-        print("Evaluating model.")
-        # Evaluate pre novelty
         from stable_baselines3.common.evaluation import evaluate_policy
+
+        print("Evaluating model performance pre-novelty.")
+        # Evaluate pre novelty
+        self.env.metadata['mode'] = 'test-prenovelty'
+
+        evaluate_policy(self.model, self.env, self.trials_post_learning, deterministic=False, render=self.render)
 
         # Recreate env to inject novelty
         self.env = gym.make(ENV_ID)
@@ -267,7 +272,7 @@ class BaselineExperiment(Experiment):
             self.env = RewardShaping(self.env)
         else:
             print("Reward shaping: OFF")
-        self.env = Monitor(self.env, f"{self._get_results_dir() + os.sep + to_datestring(time.time())}-{self.novelty_name}-monitor.csv",
+        self.env = Monitor(self.env, f"{self._get_results_dir() + os.sep + self.novelty_name}-monitor.csv",
                            allow_early_resets=True, info_keywords=('success', 'mode'))
         check_env(self.env, warn=True)
         self.env.metadata['mode'] = 'learn-postnovelty'
@@ -278,12 +283,12 @@ class BaselineExperiment(Experiment):
         checkpoint_callback = CheckpointCallback(save_freq=self.MAX_TIMESTEPS_PER_EPISODE * self.EVAL_EVERY_N_EPISODES,
                                                  save_path=self._get_results_dir() + os.sep + self.novelty_name + '-checkpoints',
                                                  name_prefix=self.novelty_name + "-" + BaselineExperiment.SAVED_MODEL_NAME)
-        eval_callback = EvalCallback(self.env, n_eval_episodes=10, eval_freq=self.MAX_TIMESTEPS_PER_EPISODE * self.EVAL_EVERY_N_EPISODES)
         self.model.learn(total_timesteps=self.TRAIN_EPISODES * self.MAX_TIMESTEPS_PER_EPISODE,
                          callback=[checkpoint_callback, eval_callback])
         self.model.save(self.results_dir + os.sep + "eval-" + self.novelty_name + "-" + BaselineExperiment.SAVED_MODEL_NAME)
 
         # evaluate the final policy
+        self.env.metadata['mode'] = 'recover-postnovelty'
         evaluate_policy(self.model, self.env, self.trials_post_learning, deterministic=False, render=self.render)
 
 
@@ -293,20 +298,20 @@ def to_datestring(unixtime: int, format='%Y-%m-%d_%H:%M:%S'):
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("--experiment", default="rapid")
+    ap.add_argument("--experiment", default="baseline")
     ap.add_argument("-N", "--novelty_name", default='axetobreakeasy',
                     help="Novelty to inject: #axetobreakeasy #axetobreakhard #firecraftingtableeasy #firecraftingtablehard #rubbertree #axefirecteasy",
                     type=str)
-    ap.add_argument("-TP", "--trials_pre_novelty", default=1, help="Number of trials pre novelty", type=int)
-    ap.add_argument("-TN", "--trials_post_learning", default=5, help="Number of trials post recovering from novelty",
+    ap.add_argument("-TP", "--trials_pre_novelty", default=10, help="Number of trials pre novelty", type=int)
+    ap.add_argument("-TN", "--trials_post_learning", default=20, help="Number of trials post recovering from novelty",
                     type=int)
     ap.add_argument("-P", "--print_every", default=200, help="Number of epsiodes you want to print the results",
                     type=int)
     ap.add_argument("-L", "--learner", default='epsilon-greedy', help="epsilon-greedy, smart-exploration", type=str)
     ap.add_argument("-T", "--transfer", default=None, type=str)
     ap.add_argument("-R", "--render", default=False, type=bool)
-    ap.add_argument("--load_model", default=False, type=str)
-    ap.add_argument("--train_episodes", default=100, type=int)
+    ap.add_argument("--load_model", default=None, type=str)
+    ap.add_argument("--train_episodes", default=10, type=int)
     ap.add_argument("--reward_shaping", dest="reward_shaping", action="store_true")
     ap.add_argument("--no_reward_shaping", dest="reward_shaping", action="store_false")
     ap.set_defaults(reward_shaping=True)
