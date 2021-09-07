@@ -11,6 +11,7 @@ def get_difference_in_obs_action_space(novelty_name):
         d_actions = 2
     elif novelty_name == 'rubbertree':
         d_obs_lidar = 1
+        d_obs_inventory = 1
     elif novelty_name == 'axefirecteasy':
         d_obs_lidar = 2
         d_obs_inventory = 2
