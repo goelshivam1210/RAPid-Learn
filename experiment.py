@@ -185,7 +185,7 @@ class BaselineExperiment(Experiment):
     N_PLACEHOLDERS_INVENTORY = 2
     N_PLACEHOLDERS_LIDAR = 2
     N_PLACEHOLDERS_ACTIONS = 3
-    EVAL_EVERY_N_EPISODES = 2
+    EVAL_EVERY_N_EPISODES = 200
 
     def __init__(self, args):
         self.TRAIN_EPISODES = args["train_episodes"]
@@ -291,10 +291,10 @@ class BaselineExperiment(Experiment):
 
         self.model.learn(total_timesteps=self.TRAIN_EPISODES * self.MAX_TIMESTEPS_PER_EPISODE,
                          callback=[checkpoint_callback, eval_callback])
-        self.model.save(self.results_dir + os.sep + "eval-" + self.novelty_name + "-" + BaselineExperiment.SAVED_MODEL_NAME)
+        self.model.save(self._get_results_dir() + os.sep + self.novelty_name + "-" + BaselineExperiment.SAVED_MODEL_NAME)
 
         # evaluate the final policy
-        self.env.metadata['mode'] = 'recover-postnovelty'
+        self.env.metadata['mode'] = 'test-recovery-postnovelty'
         evaluate_policy(self.model, self.env, self.trials_post_learning, deterministic=False, render=self.render)
 
 
