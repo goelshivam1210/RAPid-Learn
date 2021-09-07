@@ -336,7 +336,7 @@ class PolicyGradientExperiment(Experiment):
         if self.load_model:
             print(f"Attempting to load pretrained model {self.load_model}.")
             self.experiment_id = self.load_model.split(os.sep)[0]
-            self.model = self.model.load("", "", path_to_load=Experiment.DATA_DIR + os.sep + self.load_model, env=self.env)
+            self.model.load_model("", "", path_to_load=Experiment.DATA_DIR + os.sep + self.load_model)
         else:
             os.makedirs(self._get_results_dir(), exist_ok=True)
 
@@ -392,6 +392,12 @@ class PolicyGradientExperiment(Experiment):
         self.env = Monitor(self.env, f"{self._get_results_dir() + os.sep + self.novelty_name}-monitor.csv",
                            allow_early_resets=True, info_keywords=('success', 'mode'))
         check_env(self.env, warn=True)
+
+        self.model = SimpleDQN(int(self.env.action_space.n), int(self.env.observation_space.shape[0]),
+                               NUM_HIDDEN, LEARNING_RATE, GAMMA, DECAY_RATE, MAX_EPSILON,
+                               False, {}, self.env.actions_id, random_seed)
+        print(f"Attempting to load pretrained model {self.load_model}.")
+        self.model.load_model("", "", path_to_load=f"{self._get_results_dir()}{os.sep}prenovelty_model.npz")
 
         self.env.metadata['mode'] = 'learn-postnovelty-train'
         self._train_policy_gradient()
