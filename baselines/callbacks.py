@@ -8,10 +8,11 @@ class CustomEvalCallback(BaseCallback):
     Run evaluation every n episodes
     """
 
-    def __init__(self, evaluate_every_n: int):
+    def __init__(self, evaluate_every_n: int, trials_post_learning: int):
         super(CustomEvalCallback, self).__init__()
         self.evaluate_every_n = evaluate_every_n
         self.n_episodes = 0
+        self.trials_post_learning = trials_post_learning
 
     def _on_step(self) -> bool:
         # Check if enough episodes have passed to trigger an evaluation. Switch flags for monitor back appropriately
@@ -19,7 +20,7 @@ class CustomEvalCallback(BaseCallback):
         self.n_episodes += np.sum(done_array).item()
         if self.n_episodes > self.evaluate_every_n:
             self.training_env.metadata['mode'] = 'learn-postnovelty-test'
-            evaluate_policy(self.model, self.training_env)
+            evaluate_policy(self.model, self.training_env, n_eval_episodes=self.trials_post_learning)
             self.training_env.metadata['mode'] = 'learn-postnovelty-train'
             self.n_episodes = 0
         return True

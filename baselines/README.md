@@ -8,9 +8,9 @@ Find the base model in the `/RAPid-Learn/data/` folder (depending on date and ha
 Copy the full path to this model, strip the `.zip` extension and insert for `<BASE_MODEL>` below:
 
 ## Novelty injection experiments
-  - `python experiment.py --experiment baseline --load_model <BASE_MODEL> --train_episodes 50000 --reward_shaping --algorithm PPO --novelty_name firecraftingtablehard`
-  - `python experiment.py --experiment baseline --load_model <BASE_MODEL> --train_episodes 50000 --reward_shaping --algorithm PPO --novelty_name rubbertree`
-  - `python experiment.py --experiment baseline --load_model <BASE_MODEL> --train_episodes 50000 --reward_shaping --algorithm PPO --novelty_name axefirecteasy`
+  - `python experiment.py --experiment baseline --load_model <BASE_MODEL> --train_episodes 50000 --reward_shaping --algorithm PPO --novelty_name firecraftingtablehard --trials_pre_novelty 10 --trials_post_learning 20`
+  - `python experiment.py --experiment baseline --load_model <BASE_MODEL> --train_episodes 50000 --reward_shaping --algorithm PPO --novelty_name rubbertree --trials_pre_novelty 10 --trials_post_learning 20`
+  - `python experiment.py --experiment baseline --load_model <BASE_MODEL> --train_episodes 50000 --reward_shaping --algorithm PPO --novelty_name axefirecteasy --trials_pre_novelty 10 --trials_post_learning 20`
 
 ## Transfer learning experiment
 This experiment requires a second step, as we're testing how quickly the hard version of AXE_TO_BREAK can be learnt, 

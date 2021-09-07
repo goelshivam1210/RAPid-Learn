@@ -211,9 +211,7 @@ class BaselineExperiment(Experiment):
             self.model = PPO("MlpPolicy", self.env, verbose=0)
 
         # Environment wrappers
-        # (The order of these seems to be important)
         self.env = EpisodicWrapper(self.env, self.MAX_TIMESTEPS_PER_EPISODE)
-        # self.env = RecordEpisodeStatsWrapper(self.env)
         self.env = InfoExtenderWrapper(self.env)
         if self.reward_shaping:
             print("Reward shaping: ON")
@@ -227,16 +225,20 @@ class BaselineExperiment(Experiment):
     def run(self):
         if not self.load_model:
             print("No pretrained model supplied, training from scratch.")
-            self.train()
+            self.pre_novelty()
         else:
             print(f"Skipping training because pretrained model {self.load_model} was supplied.")
 
-        self.evaluate()
+        if self.novelty_name:
+            print(f"Injecting novelty {self.novelty_name} and starting to relearn.")
+            self.post_novelty_learn()
+            print(f"Evaluating final policy on {self.novelty_name}")
+            self.post_novelty_recover()
         self.env.close()
 
-    def train(self):
+    def pre_novelty(self):
         print(f"Training model for {self.TRAIN_EPISODES} episodes")
-        self.env.metadata['mode'] = 'train'
+        self.env.metadata['mode'] = 'prenovelty-train'
         self.env = Monitor(self.env, self._get_results_dir() + os.sep + "prenovelty-monitor.csv",
                            allow_early_resets=True, info_keywords=('success', 'mode'))
         check_env(self.env, warn=True)
@@ -249,14 +251,11 @@ class BaselineExperiment(Experiment):
                          callback=checkpoint_callback)
         self.model.save(self.results_dir + os.sep + 'prenovelty_model')
 
-    def evaluate(self):
-
         print("Evaluating model performance pre-novelty.")
-        # Evaluate pre novelty
-        self.env.metadata['mode'] = 'test-prenovelty'
+        self.env.metadata['mode'] = 'prenovelty-test'
+        evaluate_policy(self.model, self.env, self.trials_pre_novelty, deterministic=False, render=self.render)
 
-        evaluate_policy(self.model, self.env, self.trials_post_learning, deterministic=False, render=self.render)
-
+    def post_novelty_learn(self):
         # Recreate env to inject novelty
         self.env = gym.make(ENV_ID)
         self.env = inject_novelty(self.env, self.novelty_name)
@@ -272,10 +271,8 @@ class BaselineExperiment(Experiment):
         self.env = EpisodicWrapper(self.env, self.MAX_TIMESTEPS_PER_EPISODE)
         self.env = InfoExtenderWrapper(self.env)
         if self.reward_shaping:
-            print("Reward shaping: ON")
             self.env = RewardShaping(self.env)
-        else:
-            print("Reward shaping: OFF")
+
         self.env = Monitor(self.env, f"{self._get_results_dir() + os.sep + self.novelty_name}-monitor.csv",
                            allow_early_resets=True, info_keywords=('success', 'mode'))
         check_env(self.env, warn=True)
@@ -287,12 +284,13 @@ class BaselineExperiment(Experiment):
         checkpoint_callback = CheckpointCallback(save_freq=self.MAX_TIMESTEPS_PER_EPISODE * self.EVAL_EVERY_N_EPISODES,
                                                  save_path=self._get_results_dir() + os.sep + self.novelty_name + '-checkpoints',
                                                  name_prefix=self.novelty_name + "-" + BaselineExperiment.SAVED_MODEL_NAME)
-        eval_callback = CustomEvalCallback(evaluate_every_n=BaselineExperiment.EVAL_EVERY_N_EPISODES)
+        eval_callback = CustomEvalCallback(evaluate_every_n=BaselineExperiment.EVAL_EVERY_N_EPISODES, trials_post_learning=self.trials_post_learning)
 
         self.model.learn(total_timesteps=self.TRAIN_EPISODES * self.MAX_TIMESTEPS_PER_EPISODE,
                          callback=[checkpoint_callback, eval_callback])
         self.model.save(self._get_results_dir() + os.sep + self.novelty_name + "-" + BaselineExperiment.SAVED_MODEL_NAME)
 
+    def post_novelty_recover(self):
         # evaluate the final policy
         self.env.metadata['mode'] = 'test-recovery-postnovelty'
         evaluate_policy(self.model, self.env, self.trials_post_learning, deterministic=False, render=self.render)

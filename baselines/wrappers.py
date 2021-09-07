@@ -8,6 +8,7 @@ class RewardShaping(gym.RewardWrapper):
     """Add intermediate rewards for reaching useful subgoals."""
     def __init__(self, env):
         super().__init__(env)
+        print("Reward shaping: ON")
         self.last_inventory = copy.deepcopy(self.env.inventory_items_quantity)
         self.appropriate_next_action = self._determine_appropriate_next_action()
 
@@ -132,6 +133,7 @@ class InfoExtenderWrapper(gym.Wrapper):
 class StatePlaceholderWrapper(gym.ObservationWrapper):
     def __init__(self, env, n_placeholders_inventory=0, n_placeholders_lidar=0):
         super(StatePlaceholderWrapper, self).__init__(env)
+        print(f"Wrapping env with StatePlaceholderWrapper (inv: {n_placeholders_inventory}, lidar: {n_placeholders_lidar})")
         self.n_placeholders_lidar = n_placeholders_lidar
         self.n_placeholders_inventory = n_placeholders_inventory
 
@@ -162,6 +164,7 @@ class StatePlaceholderWrapper(gym.ObservationWrapper):
 class ActionPlaceholderWrapper(gym.ActionWrapper):
     def __init__(self, env, n_placeholders_actions=0):
         super(ActionPlaceholderWrapper, self).__init__(env)
+        print(f"Wrapping env with ActionPlaceholderWrapper (actions: {n_placeholders_actions})")
         self.n_placeholders_actions = n_placeholders_actions
         self.action_space = spaces.Discrete(len(self.env.actions_id) + self.n_placeholders_actions)
         self.env.action_space = self.action_space
