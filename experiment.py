@@ -12,11 +12,16 @@ from abc import abstractmethod, ABC
 import gym
 import logging
 
-from stable_baselines3.common.callbacks import CheckpointCallback, EvalCallback
+from stable_baselines3.common.callbacks import CheckpointCallback
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.env_checker import check_env
 from stable_baselines3.common.utils import set_random_seed
+from stable_baselines3.common.evaluation import evaluate_policy
+
 from stable_baselines3 import PPO
+
+from baselines.callbacks import CustomEvalCallback
+
 set_random_seed(42, using_cuda=True)
 
 from baselines.util import get_difference_in_obs_action_space
@@ -180,7 +185,7 @@ class BaselineExperiment(Experiment):
     N_PLACEHOLDERS_INVENTORY = 2
     N_PLACEHOLDERS_LIDAR = 2
     N_PLACEHOLDERS_ACTIONS = 3
-    EVAL_EVERY_N_EPISODES = 200
+    EVAL_EVERY_N_EPISODES = 2
 
     def __init__(self, args):
         self.TRAIN_EPISODES = args["train_episodes"]
@@ -245,7 +250,6 @@ class BaselineExperiment(Experiment):
         self.model.save(self.results_dir + os.sep + 'prenovelty_model')
 
     def evaluate(self):
-        from stable_baselines3.common.evaluation import evaluate_policy
 
         print("Evaluating model performance pre-novelty.")
         # Evaluate pre novelty
@@ -275,7 +279,7 @@ class BaselineExperiment(Experiment):
         self.env = Monitor(self.env, f"{self._get_results_dir() + os.sep + self.novelty_name}-monitor.csv",
                            allow_early_resets=True, info_keywords=('success', 'mode'))
         check_env(self.env, warn=True)
-        self.env.metadata['mode'] = 'learn-postnovelty'
+        self.env.metadata['mode'] = 'learn-postnovelty-train'
 
         self.model.set_env(self.env)
 
@@ -283,6 +287,8 @@ class BaselineExperiment(Experiment):
         checkpoint_callback = CheckpointCallback(save_freq=self.MAX_TIMESTEPS_PER_EPISODE * self.EVAL_EVERY_N_EPISODES,
                                                  save_path=self._get_results_dir() + os.sep + self.novelty_name + '-checkpoints',
                                                  name_prefix=self.novelty_name + "-" + BaselineExperiment.SAVED_MODEL_NAME)
+        eval_callback = CustomEvalCallback(evaluate_every_n=BaselineExperiment.EVAL_EVERY_N_EPISODES)
+
         self.model.learn(total_timesteps=self.TRAIN_EPISODES * self.MAX_TIMESTEPS_PER_EPISODE,
                          callback=[checkpoint_callback, eval_callback])
         self.model.save(self.results_dir + os.sep + "eval-" + self.novelty_name + "-" + BaselineExperiment.SAVED_MODEL_NAME)
