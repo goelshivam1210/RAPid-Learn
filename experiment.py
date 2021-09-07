@@ -249,7 +249,7 @@ class BaselineExperiment(Experiment):
         self.model.set_env(self.env)
         self.model.learn(total_timesteps=self.TRAIN_EPISODES * self.MAX_TIMESTEPS_PER_EPISODE,
                          callback=checkpoint_callback)
-        self.model.save(self.results_dir + os.sep + 'prenovelty_model')
+        self.model.save(self._get_results_dir() + os.sep + 'prenovelty_model')
 
         print("Evaluating model performance pre-novelty.")
         self.env.metadata['mode'] = 'prenovelty-test'
