@@ -185,7 +185,7 @@ class BaselineExperiment(Experiment):
     N_PLACEHOLDERS_INVENTORY = 2
     N_PLACEHOLDERS_LIDAR = 2
     N_PLACEHOLDERS_ACTIONS = 3
-    EVAL_EVERY_N_EPISODES = 200
+    EVAL_EVERY_N_EPISODES = 500
 
     def __init__(self, args):
         self.TRAIN_EPISODES = args["train_episodes"]
@@ -214,10 +214,7 @@ class BaselineExperiment(Experiment):
         self.env = EpisodicWrapper(self.env, self.MAX_TIMESTEPS_PER_EPISODE)
         self.env = InfoExtenderWrapper(self.env)
         if self.reward_shaping:
-            print("Reward shaping: ON")
             self.env = RewardShaping(self.env)
-        else:
-            print("Reward shaping: OFF")
 
         # This is to use the env with all the wrappers for the model.
         self.model.set_env(self.env)
@@ -254,6 +251,7 @@ class BaselineExperiment(Experiment):
         print("Evaluating model performance pre-novelty.")
         self.env.metadata['mode'] = 'prenovelty-test'
         evaluate_policy(self.model, self.env, self.trials_pre_novelty, deterministic=False, render=self.render)
+        print("Finished experiment.")
 
     def post_novelty_learn(self):
         # Recreate env to inject novelty
@@ -284,7 +282,8 @@ class BaselineExperiment(Experiment):
         checkpoint_callback = CheckpointCallback(save_freq=self.MAX_TIMESTEPS_PER_EPISODE * self.EVAL_EVERY_N_EPISODES,
                                                  save_path=self._get_results_dir() + os.sep + self.novelty_name + '-checkpoints',
                                                  name_prefix=self.novelty_name + "-" + BaselineExperiment.SAVED_MODEL_NAME)
-        eval_callback = CustomEvalCallback(evaluate_every_n=BaselineExperiment.EVAL_EVERY_N_EPISODES, trials_post_learning=self.trials_post_learning)
+        eval_callback = CustomEvalCallback(evaluate_every_n=BaselineExperiment.EVAL_EVERY_N_EPISODES,
+                                           trials_post_learning=self.trials_post_learning)
 
         self.model.learn(total_timesteps=self.TRAIN_EPISODES * self.MAX_TIMESTEPS_PER_EPISODE,
                          callback=[checkpoint_callback, eval_callback])
