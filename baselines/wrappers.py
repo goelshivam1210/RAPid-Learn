@@ -95,10 +95,13 @@ class RewardShaping(gym.RewardWrapper):
             return 'craft_pogo_stick'
 
 class EpisodicWrapper(gym.Wrapper):
+    LOG_INTERVAL = 200
+
     """Terminate the episode and reset the environment after a number of timesteps has passed"""
-    def __init__(self, env, timesteps_per_episode):
+    def __init__(self, env, timesteps_per_episode, verbose=False):
         super().__init__(env)
         self.env = env
+        self.verbose = verbose
         self.timestep = 0
         self.episode = 0
         self.timesteps_per_episode = timesteps_per_episode
@@ -115,6 +118,8 @@ class EpisodicWrapper(gym.Wrapper):
         obs = self.env.reset()
         self.episode += 1
         self.timestep = 0
+        if self.verbose and self.episode % EpisodicWrapper.LOG_INTERVAL == 0:
+            print(f"Starting episode #{self.episode}")
         return obs
 
 class InfoExtenderWrapper(gym.Wrapper):
