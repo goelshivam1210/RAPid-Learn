@@ -229,6 +229,10 @@ class BaselineExperiment(Experiment):
         else:
             print(f"Skipping training because pretrained model {self.load_model} was supplied.")
 
+        print("Evaluating model performance pre-novelty.")
+        self.env.metadata['mode'] = 'prenovelty-test'
+        evaluate_policy(self.model, self.env, self.trials_pre_novelty, deterministic=False, render=self.render)
+
         if self.novelty_name:
             print(f"Injecting novelty {self.novelty_name} and starting to relearn.")
             self.post_novelty_learn()
@@ -251,10 +255,7 @@ class BaselineExperiment(Experiment):
                          callback=checkpoint_callback)
         self.model.save(self._get_results_dir() + os.sep + 'prenovelty_model')
 
-        print("Evaluating model performance pre-novelty.")
-        self.env.metadata['mode'] = 'prenovelty-test'
-        evaluate_policy(self.model, self.env, self.trials_pre_novelty, deterministic=False, render=self.render)
-        print("Finished experiment.")
+
 
     def post_novelty_learn(self):
         # Recreate env to inject novelty
