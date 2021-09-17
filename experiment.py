@@ -13,10 +13,25 @@ import gym
 import logging
 
 from stable_baselines3.common.callbacks import CheckpointCallback
+from stable_baselines3.common.monitor import Monitor
+from stable_baselines3.common.env_checker import check_env
+from stable_baselines3.common.utils import set_random_seed
+from stable_baselines3.common.evaluation import evaluate_policy
 
+from params import *
+
+from stable_baselines3 import PPO
+
+from SimpleDQN import SimpleDQN
+from baselines.callbacks import CustomEvalCallback
+
+set_random_seed(42, using_cuda=True)
+
+from baselines.util import get_difference_in_obs_action_space
 from brain import Brain
 from baselines.wrappers import *
 from params import EPS_TO_EVAL
+from gym_novel_gridworlds.novelty_wrappers import inject_novelty
 
 ENV_ID = 'NovelGridworld-Pogostick-v1'  # always remains the same.
 
@@ -170,6 +185,10 @@ class BaselineExperiment(Experiment):
     HEADER_TEST = ['trial', 'episode', 'timesteps', 'reward', 'success']
     MAX_TIMESTEPS_PER_EPISODE = 500
     SAVED_MODEL_NAME = 'model'
+    N_PLACEHOLDERS_INVENTORY = 2
+    N_PLACEHOLDERS_LIDAR = 2
+    N_PLACEHOLDERS_ACTIONS = 3
+    EVAL_EVERY_N_EPISODES = 500
 
     def __init__(self, args):
         self.TRAIN_EPISODES = args["train_episodes"]
@@ -181,38 +200,24 @@ class BaselineExperiment(Experiment):
                                                  f"{to_datestring(time.time())}-baseline-{self.algorithm}-{self.TRAIN_EPISODES}episodes-"
                                                  f"{'rewardshapingon' if self.reward_shaping else 'rewardshapingoff'}")
 
-        # Import these here so you can run RAPID experiments without having to have stable baselines installed
-        from stable_baselines3.common.monitor import Monitor
-        from stable_baselines3.common.env_checker import check_env
-        from stable_baselines3.common.utils import set_random_seed
-        from stable_baselines3 import PPO
-        set_random_seed(42, using_cuda=True)
-
-        self.env = StatePlaceholderWrapper(self.env, n_placeholders_inventory=2, n_placeholders_lidar=2)
-        self.env = ActionPlaceholderWrapper(self.env, n_placeholders_actions=3)
+        self.env = StatePlaceholderWrapper(self.env, n_placeholders_inventory=self.N_PLACEHOLDERS_INVENTORY,
+                                           n_placeholders_lidar=self.N_PLACEHOLDERS_LIDAR)
+        self.env = ActionPlaceholderWrapper(self.env, n_placeholders_actions=self.N_PLACEHOLDERS_ACTIONS)
 
         if self.load_model:
             print(f"Attempting to load pretrained model {self.load_model}.")
-            self.experiment_id = self.load_model
+            self.experiment_id = self.load_model.split(os.sep)[0]
             self.model = PPO.load(
-                self._get_results_dir() + os.sep + BaselineExperiment.SAVED_MODEL_NAME)
+                Experiment.DATA_DIR + os.sep + self.load_model)
         else:
             os.makedirs(self._get_results_dir(), exist_ok=True)
             self.model = PPO("MlpPolicy", self.env, verbose=0)
 
         # Environment wrappers
-        # (The order of these seems to be important)
         self.env = EpisodicWrapper(self.env, self.MAX_TIMESTEPS_PER_EPISODE)
-        # self.env = RecordEpisodeStatsWrapper(self.env)
         self.env = InfoExtenderWrapper(self.env)
         if self.reward_shaping:
-            print("Reward shaping: ON")
             self.env = RewardShaping(self.env)
-        else:
-            print("Reward shaping: OFF")
-        self.env = Monitor(self.env, self._get_results_dir() + os.sep + to_datestring(time.time()) + "-monitor.csv",
-                           allow_early_resets=True, info_keywords=('success', 'mode'))
-        check_env(self.env, warn=True)
 
         # This is to use the env with all the wrappers for the model.
         self.model.set_env(self.env)
@@ -220,29 +225,278 @@ class BaselineExperiment(Experiment):
     def run(self):
         if not self.load_model:
             print("No pretrained model supplied, training from scratch.")
-            self.train()
+            self.pre_novelty()
         else:
             print(f"Skipping training because pretrained model {self.load_model} was supplied.")
 
-        self.evaluate()
+        print("Evaluating model performance pre-novelty.")
+        self.env.metadata['mode'] = 'prenovelty-test'
+        evaluate_policy(self.model, self.env, self.trials_pre_novelty, deterministic=False, render=self.render)
+
+        if self.novelty_name:
+            print(f"Injecting novelty {self.novelty_name} and starting to relearn.")
+            self.post_novelty_learn()
+            print(f"Evaluating final policy on {self.novelty_name}")
+            self.post_novelty_recover()
         self.env.close()
 
-    def train(self):
+    def pre_novelty(self):
         print(f"Training model for {self.TRAIN_EPISODES} episodes")
-        self.env.metadata['mode'] = 'train'
-        checkpoint_callback = CheckpointCallback(save_freq=self.MAX_TIMESTEPS_PER_EPISODE * 500, save_path=self.results_dir + os.sep + 'checkpoints',
+        self.env.metadata['mode'] = 'prenovelty-train'
+        self.env = Monitor(self.env, self._get_results_dir() + os.sep + "prenovelty-monitor.csv",
+                           allow_early_resets=True, info_keywords=('success', 'mode'))
+        check_env(self.env, warn=True)
+
+        checkpoint_callback = CheckpointCallback(save_freq=self.MAX_TIMESTEPS_PER_EPISODE * 500,
+                                                 save_path=self._get_results_dir() + os.sep + 'prenovelty-checkpoints',
                                                  name_prefix=BaselineExperiment.SAVED_MODEL_NAME)
+        self.model.set_env(self.env)
         self.model.learn(total_timesteps=self.TRAIN_EPISODES * self.MAX_TIMESTEPS_PER_EPISODE,
                          callback=checkpoint_callback)
-        self.model.save(self.results_dir + os.sep + BaselineExperiment.SAVED_MODEL_NAME)
+        self.model.save(self._get_results_dir() + os.sep + 'prenovelty_model')
 
-    def evaluate(self):
-        print("Evaluating model.")
-        self.env.metadata['mode'] = 'test-prenovelty'
-        from stable_baselines3.common.evaluation import evaluate_policy
+
+
+    def post_novelty_learn(self):
+        # Recreate env to inject novelty
+        self.env = gym.make(ENV_ID)
+        self.env = inject_novelty(self.env, self.novelty_name)
+
+        # Wrap env with correct placeholder numbers
+        d_obs_inventory, d_obs_lidar, d_actions = get_difference_in_obs_action_space(self.novelty_name)
+        self.env = StatePlaceholderWrapper(self.env,
+                                           n_placeholders_inventory=self.N_PLACEHOLDERS_INVENTORY - d_obs_inventory,
+                                           n_placeholders_lidar=self.N_PLACEHOLDERS_LIDAR - d_obs_lidar)
+        self.env = ActionPlaceholderWrapper(self.env, n_placeholders_actions=self.N_PLACEHOLDERS_ACTIONS - d_actions)
+
+        # Rewrap the environment with everything else
+        self.env = EpisodicWrapper(self.env, self.MAX_TIMESTEPS_PER_EPISODE)
+        self.env = InfoExtenderWrapper(self.env)
+        if self.reward_shaping:
+            self.env = RewardShaping(self.env)
+
+        self.env = Monitor(self.env, f"{self._get_results_dir() + os.sep + self.novelty_name}-monitor.csv",
+                           allow_early_resets=True, info_keywords=('success', 'mode'))
+        check_env(self.env, warn=True)
+        self.env.metadata['mode'] = 'learn-postnovelty-train'
+
+        self.model.set_env(self.env)
+
+        print(f"Evaluation - Model: {self.algorithm}, NOVELTY: {self.novelty_name}, EPISODES: {self.TRAIN_EPISODES}")
+        checkpoint_callback = CheckpointCallback(save_freq=self.MAX_TIMESTEPS_PER_EPISODE * self.EVAL_EVERY_N_EPISODES,
+                                                 save_path=self._get_results_dir() + os.sep + self.novelty_name + '-checkpoints',
+                                                 name_prefix=self.novelty_name + "-" + BaselineExperiment.SAVED_MODEL_NAME)
+        eval_callback = CustomEvalCallback(evaluate_every_n=BaselineExperiment.EVAL_EVERY_N_EPISODES,
+                                           trials_post_learning=self.trials_post_learning)
+
+        self.model.learn(total_timesteps=self.TRAIN_EPISODES * self.MAX_TIMESTEPS_PER_EPISODE,
+                         callback=[checkpoint_callback, eval_callback])
+        self.model.save(self._get_results_dir() + os.sep + self.novelty_name + "-" + BaselineExperiment.SAVED_MODEL_NAME)
+
+    def post_novelty_recover(self):
+        # evaluate the final policy
+        self.env.metadata['mode'] = 'test-recovery-postnovelty'
+        evaluate_policy(self.model, self.env, self.trials_post_learning, deterministic=False, render=self.render)
+
+
+class PolicyGradientExperiment(Experiment):
+    HEADER_TRAIN = ['episode', 'timesteps', 'reward', 'success']
+    HEADER_TEST = ['trial', 'episode', 'timesteps', 'reward', 'success']
+    MAX_TIMESTEPS_PER_EPISODE = 500
+    SAVED_MODEL_NAME = 'model'
+    N_PLACEHOLDERS_INVENTORY = 2
+    N_PLACEHOLDERS_LIDAR = 2
+    N_PLACEHOLDERS_ACTIONS = 3
+    EVAL_EVERY_N_EPISODES = 500
+
+    def __init__(self, args):
+        self.TRAIN_EPISODES = args["train_episodes"]
+        self.load_model = args["load_model"]
+        self.reward_shaping = args["reward_shaping"]
+        self.algorithm = args["algorithm"]
+
+        super(PolicyGradientExperiment, self).__init__(args, self.HEADER_TRAIN, self.HEADER_TEST,
+                                                 f"{to_datestring(time.time())}-policygradient-{self.TRAIN_EPISODES}episodes")
+        self.CHECKPOINT_DIR = f"{self._get_results_dir()}{os.sep}prenovelty-checkpoints"
+        os.makedirs(self.CHECKPOINT_DIR, exist_ok=True)
+
+        self.env = StatePlaceholderWrapper(self.env, n_placeholders_inventory=self.N_PLACEHOLDERS_INVENTORY,
+                                           n_placeholders_lidar=self.N_PLACEHOLDERS_LIDAR)
+        self.env = ActionPlaceholderWrapper(self.env, n_placeholders_actions=self.N_PLACEHOLDERS_ACTIONS)
+
+        # Environment wrappers
+        self.env = EpisodicWrapper(self.env, self.MAX_TIMESTEPS_PER_EPISODE)
+        self.env = InfoExtenderWrapper(self.env)
+        if self.reward_shaping:
+            self.env = RewardShaping(self.env)
+
+        self.model = SimpleDQN(int(self.env.action_space.n), int(self.env.observation_space.shape[0]),
+                               NUM_HIDDEN, LEARNING_RATE, GAMMA, DECAY_RATE, MAX_EPSILON,
+                               False, {}, self.env.actions_id, random_seed)
+
+        if self.load_model:
+            print(f"Attempting to load pretrained model {self.load_model}.")
+            self.experiment_id = self.load_model.split(os.sep)[0]
+            self.model.load_model("", "", path_to_load=Experiment.DATA_DIR + os.sep + self.load_model)
+        else:
+            os.makedirs(self._get_results_dir(), exist_ok=True)
+
+        self.model.set_explore_epsilon(MAX_EPSILON)
+
+
+    def run(self):
+        if not self.load_model:
+            print("No pretrained model supplied, training from scratch.")
+            self.pre_novelty()
+        else:
+            print(f"Skipping training because pretrained model {self.load_model} was supplied.")
+
+        if self.novelty_name:
+            print(f"Injecting novelty {self.novelty_name} and starting to relearn.")
+            self.post_novelty_learn()
+            print(f"Evaluating final policy on {self.novelty_name}")
+            self.post_novelty_recover()
+        self.env.close()
+
+    def pre_novelty(self):
+        self.env.metadata['mode'] = 'prenovelty-train'
+        self.env = Monitor(self.env, self._get_results_dir() + os.sep + "prenovelty-monitor.csv",
+                           allow_early_resets=True, info_keywords=('success', 'mode'))
+        check_env(self.env, warn=True)
+
+        self._train_policy_gradient()
+        self.model.save_model("", "", path_to_save=f"{self._get_results_dir()}{os.sep}prenovelty_model.npz")
+
+        print("Evaluating model performance pre-novelty.")
+        self.env.metadata['mode'] = 'prenovelty-test'
+        for i in range(self.trials_pre_novelty):
+            self._single_eval_episode()
+
+    def post_novelty_learn(self):
+        # Recreate env to inject novelty
+        self.env = gym.make(ENV_ID)
+        self.env = inject_novelty(self.env, self.novelty_name)
+
+        # Wrap env with correct placeholder numbers
+        d_obs_inventory, d_obs_lidar, d_actions = get_difference_in_obs_action_space(self.novelty_name)
+        self.env = StatePlaceholderWrapper(self.env,
+                                           n_placeholders_inventory=self.N_PLACEHOLDERS_INVENTORY - d_obs_inventory,
+                                           n_placeholders_lidar=self.N_PLACEHOLDERS_LIDAR - d_obs_lidar)
+        self.env = ActionPlaceholderWrapper(self.env, n_placeholders_actions=self.N_PLACEHOLDERS_ACTIONS - d_actions)
+
+        # Rewrap the environment with everything else
+        self.env = EpisodicWrapper(self.env, self.MAX_TIMESTEPS_PER_EPISODE)
+        self.env = InfoExtenderWrapper(self.env)
+        if self.reward_shaping:
+            self.env = RewardShaping(self.env)
+
+        self.env = Monitor(self.env, f"{self._get_results_dir() + os.sep + self.novelty_name}-monitor.csv",
+                           allow_early_resets=True, info_keywords=('success', 'mode'))
+        check_env(self.env, warn=True)
+
+        self.model = SimpleDQN(int(self.env.action_space.n), int(self.env.observation_space.shape[0]),
+                               NUM_HIDDEN, LEARNING_RATE, GAMMA, DECAY_RATE, MAX_EPSILON,
+                               False, {}, self.env.actions_id, random_seed)
+        print(f"Attempting to load pretrained model {self.load_model}.")
+        self.model.load_model("", "", path_to_load=f"{self._get_results_dir()}{os.sep}prenovelty_model.npz")
+
+        self.env.metadata['mode'] = 'learn-postnovelty-train'
+        self._train_policy_gradient()
+        self.model.save_model("", "", path_to_save=f"{self._get_results_dir()}{os.sep}{self.novelty_name}_model.npz")
+
+    def post_novelty_recover(self):
+        # evaluate the final policy
+        self.env.metadata['mode'] = 'test-recovery-postnovelty'
+        for i in range(self.trials_post_learning):
+            self._single_eval_episode()
+
+    def _train_policy_gradient(self, eval_every_n: int=-1, mode: str= 'prenovelty-test'):
+        self.Epsilons = []
+        self.Rhos = []
+        self.Steps = []
+        self.R = []
+        self.Done = []
+
+        print(f"Training model for {self.TRAIN_EPISODES} episodes")
+        for episode in range(0, self.TRAIN_EPISODES):
+            # Evaluate every n episodes
+            if eval_every_n > 0 and episode % eval_every_n == 0:
+                mode_before = self.env.metadata['mode']
+                self.env.metadata['mode'] = mode
+                for i in range(self.trials_post_learning):
+                    self._single_eval_episode()
+                self.env.metadata['mode'] = mode_before
+            if episode % 500 == 0 and episode > 0:
+                path = f"{self.CHECKPOINT_DIR}{os.sep}{BaselineExperiment.SAVED_MODEL_NAME}-{str(episode)}episodes"
+                self.model.save_model("", "", path_to_save=path)
+            reward_per_episode = 0
+            episode_timesteps = 0
+            epsilon = MIN_EPSILON + (MAX_EPSILON - MIN_EPSILON) * \
+                      math.exp(-LAMBDA * episode)
+            self.model._explore_eps = epsilon
+            self.rho = MIN_RHO + (MAX_RHO - MIN_RHO) * \
+                       math.exp(-LAMBDA * episode)
+            obs = self.env.reset()
+            info = self.env.get_info()
+
+            while True:
+                action = self.model.process_step(obs, True)
+                obs, rew, done, info = self.env.step(action)
+
+                episode_timesteps += 1
+
+                self.model.give_reward(rew)
+                # here we update the network with the observation and reward
+                reward_per_episode += rew  # save reward
+                if done or episode_timesteps > PolicyGradientExperiment.MAX_TIMESTEPS_PER_EPISODE:
+                    self.model.finish_episode()
+                    if episode % UPDATE_RATE == 0:
+                        self.model.update_parameters()
+                    if done:
+                        if episode % PRINT_EVERY == 0:
+                            print("--EP >>{}, steps>>{},  Rew>>{}, done({})>>{}, eps>>{} rho>>{} \n".format(episode,
+                                                                                                            episode_timesteps,
+                                                                                                            reward_per_episode,
+                                                                                                            NO_OF_DONES_TO_CHECK,
+                                                                                                            np.mean(self.Done[-NO_OF_DONES_TO_CHECK:]),
+                                                                                                            round(self.model._explore_eps, 3),
+                                                                                                            round(self.rho, 3)))
+                        self.Epsilons.append(self.model._explore_eps)
+                        self.Rhos.append(self.rho)
+                        self.Steps.append(episode_timesteps)
+                        self.Done.append(1)
+                        self.R.append(reward_per_episode)
+                        if episode > NO_OF_EPS_TO_CHECK:
+                            if np.mean(self.R[-NO_OF_EPS_TO_CHECK:]) > SCORE_TO_CHECK:  # check the average reward for last 70 episodes
+                                # for future we can write an evaluation function here which runs a evaluation on the current policy.
+                                if np.sum(self.Done[-NO_OF_DONES_TO_CHECK:]) > NO_OF_SUCCESSFUL_DONE:  # and check the success percentage of the agent > 80%.
+                                    print("The agent has learned to reach the subgoal")
+                                    return True
+                        break
+                    elif episode_timesteps >= PolicyGradientExperiment.MAX_TIMESTEPS_PER_EPISODE:
+                        if episode % PRINT_EVERY == 0:
+                            print("--EP >>{}, steps>>{},  Rew>>{}, done({})>>{}, eps>>{} rho>>{} \n".format(episode,
+                                                                                                            episode_timesteps,
+                                                                                                            reward_per_episode,
+                                                                                                            NO_OF_DONES_TO_CHECK,
+                                                                                                            np.mean(self.Done[-NO_OF_DONES_TO_CHECK:]),
+                                                                                                            round(self.model._explore_eps, 3),
+                                                                                                            round(self.rho, 3)))
+                        self.Epsilons.append(self.model._explore_eps)
+                        self.Rhos.append(self.rho)
+                        self.Steps.append(episode_timesteps)
+                        self.Done.append(0)
+                        self.R.append(reward_per_episode)
+                        break
+
+    def _single_eval_episode(self):
         obs = self.env.reset()
+        info = self.env.get_info()
         done = False
-        evaluate_policy(self.model, self.env, self.trials_pre_novelty, deterministic=False, render=self.render)
+
+        while not done:
+            action = self.model.process_step(obs, True)
+            obs, rew, done, info = self.env.step(action)
 
 
 def to_datestring(unixtime: int, format='%Y-%m-%d_%H:%M:%S'):
@@ -251,20 +505,20 @@ def to_datestring(unixtime: int, format='%Y-%m-%d_%H:%M:%S'):
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("--experiment", default="rapid")
-    ap.add_argument("-N", "--novelty_name", default='axetobreakeasy',
+    ap.add_argument("--experiment", default="baseline")
+    ap.add_argument("-N", "--novelty_name", default=None,
                     help="Novelty to inject: #axetobreakeasy #axetobreakhard #firecraftingtableeasy #firecraftingtablehard #rubbertree #axefirecteasy",
                     type=str)
-    ap.add_argument("-TP", "--trials_pre_novelty", default=1, help="Number of trials pre novelty", type=int)
-    ap.add_argument("-TN", "--trials_post_learning", default=5, help="Number of trials post recovering from novelty",
+    ap.add_argument("-TP", "--trials_pre_novelty", default=10, help="Number of trials pre novelty", type=int)
+    ap.add_argument("-TN", "--trials_post_learning", default=20, help="Number of trials post recovering from novelty",
                     type=int)
     ap.add_argument("-P", "--print_every", default=200, help="Number of epsiodes you want to print the results",
                     type=int)
     ap.add_argument("-L", "--learner", default='epsilon-greedy', help="epsilon-greedy, smart-exploration", type=str)
     ap.add_argument("-T", "--transfer", default=None, type=str)
     ap.add_argument("-R", "--render", default=False, type=bool)
-    ap.add_argument("--load_model", default=False, type=str)
-    ap.add_argument("--train_episodes", default=100, type=int)
+    ap.add_argument("--load_model", default=None, type=str)
+    ap.add_argument("--train_episodes", default=10, type=int)
     ap.add_argument("--reward_shaping", dest="reward_shaping", action="store_true")
     ap.add_argument("--no_reward_shaping", dest="reward_shaping", action="store_false")
     ap.set_defaults(reward_shaping=True)
@@ -274,6 +528,8 @@ if __name__ == "__main__":
     args = vars(ap.parse_args())
     if args['experiment'] == 'baseline':
         experiment1 = BaselineExperiment(args)
+    elif args['experiment'] == 'policy_gradient':
+        experiment1 = PolicyGradientExperiment(args)
     else:
         experiment1 = RapidExperiment(args)
     experiment1.run()

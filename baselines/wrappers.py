@@ -8,6 +8,7 @@ class RewardShaping(gym.RewardWrapper):
     """Add intermediate rewards for reaching useful subgoals."""
     def __init__(self, env):
         super().__init__(env)
+        print("Reward shaping: ON")
         self.last_inventory = copy.deepcopy(self.env.inventory_items_quantity)
         self.appropriate_next_action = self._determine_appropriate_next_action()
 
@@ -94,10 +95,13 @@ class RewardShaping(gym.RewardWrapper):
             return 'craft_pogo_stick'
 
 class EpisodicWrapper(gym.Wrapper):
+    LOG_INTERVAL = 200
+
     """Terminate the episode and reset the environment after a number of timesteps has passed"""
-    def __init__(self, env, timesteps_per_episode):
+    def __init__(self, env, timesteps_per_episode, verbose=False):
         super().__init__(env)
         self.env = env
+        self.verbose = verbose
         self.timestep = 0
         self.episode = 0
         self.timesteps_per_episode = timesteps_per_episode
@@ -114,6 +118,8 @@ class EpisodicWrapper(gym.Wrapper):
         obs = self.env.reset()
         self.episode += 1
         self.timestep = 0
+        if self.verbose and self.episode % EpisodicWrapper.LOG_INTERVAL == 0:
+            print(f"Starting episode #{self.episode}")
         return obs
 
 class InfoExtenderWrapper(gym.Wrapper):
@@ -132,6 +138,7 @@ class InfoExtenderWrapper(gym.Wrapper):
 class StatePlaceholderWrapper(gym.ObservationWrapper):
     def __init__(self, env, n_placeholders_inventory=0, n_placeholders_lidar=0):
         super(StatePlaceholderWrapper, self).__init__(env)
+        print(f"Wrapping env with StatePlaceholderWrapper (inv: {n_placeholders_inventory}, lidar: {n_placeholders_lidar})")
         self.n_placeholders_lidar = n_placeholders_lidar
         self.n_placeholders_inventory = n_placeholders_inventory
 
@@ -154,14 +161,25 @@ class StatePlaceholderWrapper(gym.ObservationWrapper):
                                 len(self.env.items_lidar) * self.env.num_beams:-1]
         selected_observation = [observation[-1]]
 
-        placeholders_lidar = np.zeros(self.n_placeholders_lidar * self.env.num_beams)
-        placeholders_inventory = np.zeros(self.n_placeholders_inventory)
-        return np.hstack([lidar_observation, placeholders_lidar, inventory_observation, placeholders_inventory,
+        # insert the placeholders after each beam signal
+        lidar_obs_with_placeholders = []
+        beam_counter = 0
+        for x in lidar_observation:
+            beam_counter += 1
+            lidar_obs_with_placeholders.append(x)
+            if beam_counter == len(self.env.items_lidar):
+                for i in range(self.n_placeholders_lidar):
+                    lidar_obs_with_placeholders.append(0)
+                beam_counter = 0
+
+        placeholders_inventory = np.ones(self.n_placeholders_inventory, dtype=int) * 10
+        return np.hstack([lidar_obs_with_placeholders, inventory_observation, placeholders_inventory,
                           selected_observation])
 
 class ActionPlaceholderWrapper(gym.ActionWrapper):
     def __init__(self, env, n_placeholders_actions=0):
         super(ActionPlaceholderWrapper, self).__init__(env)
+        print(f"Wrapping env with ActionPlaceholderWrapper (actions: {n_placeholders_actions})")
         self.n_placeholders_actions = n_placeholders_actions
         self.action_space = spaces.Discrete(len(self.env.actions_id) + self.n_placeholders_actions)
         self.env.action_space = self.action_space

@@ -236,16 +236,18 @@ class SimpleDQN(object):
             self._model[k] -= self._learning_rate * g / (np.sqrt(self._rmsprop_cache[k]) + 1e-5)
             self._grad_buffer[k] = np.zeros_like(v) # reset batch gradient buffer
 
-    def save_model(self, novelty_name, operator_name):
+    def save_model(self, novelty_name, operator_name, path_to_save=None):
         if self.clever_exploration:
             experiment_file_name = str(novelty_name) + "_smart-exploration_" + str(operator_name) 
         else:        
             experiment_file_name = str(novelty_name) + '_epsilon-greedy_' + str(operator_name) 
-        path_to_save = self.log_dir + os.sep + self.env_id + '_' + experiment_file_name + '.npz'
+        if not path_to_save:
+            path_to_save = self.log_dir + os.sep + self.env_id + '_' + experiment_file_name + '.npz'
+
         np.savez(path_to_save, layer1 = self._model['W1'], layer2 = self._model['W2'])
         print("saved to: ", path_to_save)
 
-    def load_model(self, novelty_name, operator_name, transfer_from = None):
+    def load_model(self, novelty_name, operator_name, transfer_from = None, path_to_load=None):
         if transfer_from is not None: # if the policy needs to be transferred, then load the from that file.
             novelty_name = transfer_from
         if self.clever_exploration:
@@ -253,7 +255,8 @@ class SimpleDQN(object):
         else:        
             experiment_file_name = str(novelty_name) + '_epsilon-greedy_' + str(operator_name) 
         # experiment_file_name = str(novelty_name) + '_' + str(operator_name)
-        path_to_load = self.log_dir + os.sep + self.env_id + '_' + experiment_file_name + '.npz'
+        if not path_to_load:
+            path_to_load = self.log_dir + os.sep + self.env_id + '_' + experiment_file_name + '.npz'
         data = np.load(path_to_load)
         self._model['W1'] = data['layer1']
         self._model['W2'] = data['layer2']
