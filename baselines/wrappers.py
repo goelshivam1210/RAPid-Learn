@@ -161,9 +161,19 @@ class StatePlaceholderWrapper(gym.ObservationWrapper):
                                 len(self.env.items_lidar) * self.env.num_beams:-1]
         selected_observation = [observation[-1]]
 
-        placeholders_lidar = np.zeros(self.n_placeholders_lidar * self.env.num_beams)
-        placeholders_inventory = np.zeros(self.n_placeholders_inventory)
-        return np.hstack([lidar_observation, placeholders_lidar, inventory_observation, placeholders_inventory,
+        # insert the placeholders after each beam signal
+        lidar_obs_with_placeholders = []
+        beam_counter = 0
+        for x in lidar_observation:
+            beam_counter += 1
+            lidar_obs_with_placeholders.append(x)
+            if beam_counter == len(self.env.items_lidar):
+                for i in range(self.n_placeholders_lidar):
+                    lidar_obs_with_placeholders.append(0)
+                beam_counter = 0
+
+        placeholders_inventory = np.ones(self.n_placeholders_inventory, dtype=int) * 10
+        return np.hstack([lidar_obs_with_placeholders, inventory_observation, placeholders_inventory,
                           selected_observation])
 
 class ActionPlaceholderWrapper(gym.ActionWrapper):
