@@ -50,14 +50,33 @@ class RewardShaping(gym.RewardWrapper):
 
         self.last_inventory = copy.deepcopy(self.env.inventory_items_quantity)
         self.appropriate_next_action = self._determine_appropriate_next_action()
+        print(self.appropriate_next_action)
         return reward
 
     def _determine_appropriate_next_action(self):
-        if sum([self.env.inventory_items_quantity['tree_tap'],
-                self.env.inventory_items_quantity['rubber'],
-                self.env.inventory_items_quantity['pogo_stick']]) < 1:
-            if self.env.inventory_items_quantity['stick'] == 0 or self.env.inventory_items_quantity['plank'] < 4:
-                if self.env.inventory_items_quantity['stick'] == 0:
+        if self.env.inventory_items_quantity['pogo_stick'] < 1:
+            if self.env.inventory_items_quantity['rubber'] < 1:
+                if self.env.inventory_items_quantity['tree_tap'] < 1:
+                    if self.env.inventory_items_quantity['stick'] == 0 or self.env.inventory_items_quantity['plank'] < 4:
+                        if self.env.inventory_items_quantity['stick'] == 0:
+                            if self.env.inventory_items_quantity['plank'] < 2:
+                                if self.env.inventory_items_quantity['tree_log'] == 0:
+                                    return 'break_tree'
+                                else:
+                                    return 'craft_plank'
+                            else:
+                                return 'craft_stick'
+                        if self.env.inventory_items_quantity['plank'] < 4:
+                            if self.env.inventory_items_quantity['tree_log'] == 0:
+                                return 'break_tree'
+                            else:
+                                return 'craft_plank'
+                    else:
+                        return 'craft_treetap'
+                else:
+                    return 'extract_rubber'
+            else:
+                if self.env.inventory_items_quantity['stick'] < 4:
                     if self.env.inventory_items_quantity['plank'] < 2:
                         if self.env.inventory_items_quantity['tree_log'] == 0:
                             return 'break_tree'
@@ -65,34 +84,14 @@ class RewardShaping(gym.RewardWrapper):
                             return 'craft_plank'
                     else:
                         return 'craft_stick'
-                if self.env.inventory_items_quantity['plank'] < 4:
-                    if self.env.inventory_items_quantity['tree_log'] == 0:
-                        if self.env.block_in_front_id != 6:
-                            return 'break_tree'
-                    else:
-                        return 'craft_plank'
-            else:
-                return 'craft_treetap'
-
-        if sum([self.env.inventory_items_quantity['rubber'],
-                self.env.inventory_items_quantity['pogo_stick']]) < 1 and \
-                self.env.inventory_items_quantity['tree_tap'] >= 1:
-            return 'extract_rubber'
-        if self.env.inventory_items_quantity['pogo_stick'] < 1 and self.env.inventory_items_quantity['rubber'] >= 1:
-            if self.env.inventory_items_quantity['stick'] < 4:
                 if self.env.inventory_items_quantity['plank'] < 2:
                     if self.env.inventory_items_quantity['tree_log'] == 0:
                         return 'break_tree'
                     else:
                         return 'craft_plank'
-                else:
-                    return 'craft_stick'
-            if self.env.inventory_items_quantity['plank'] < 2:
-                if self.env.inventory_items_quantity['tree_log'] == 0:
-                    return 'break_tree'
-                else:
-                    return 'craft_plank'
-            return 'craft_pogo_stick'
+                return 'craft_pogo_stick'
+        else:
+            return None
 
 class EpisodicWrapper(gym.Wrapper):
     LOG_INTERVAL = 200
