@@ -10,6 +10,7 @@ import copy
 import uuid
 from abc import abstractmethod, ABC
 import gym
+import json
 import logging
 
 from stable_baselines3.common.callbacks import CheckpointCallback
@@ -30,7 +31,7 @@ set_random_seed(42, using_cuda=True)
 from baselines.util import get_difference_in_obs_action_space
 from brain import Brain
 from baselines.wrappers import *
-from params import EPS_TO_EVAL
+from params import *
 from gym_novel_gridworlds.novelty_wrappers import inject_novelty
 
 ENV_ID = 'NovelGridworld-Pogostick-v1'  # always remains the same.
@@ -61,6 +62,11 @@ class Experiment:
         with open(db_file_name, 'a') as f:  # append to the file created
             writer = csv.writer(f)
             writer.writerow(data)
+    def write_params_to_file(self, data):
+        db_file_name = self.results_dir + os.sep + "params.json"
+        out_file = open(db_file_name, "w") 
+        json.dump(data, out_file, indent = 6) 
+        out_file.close() 
 
 
 class RapidExperiment(Experiment):
@@ -81,6 +87,18 @@ class RapidExperiment(Experiment):
 
         self.write_row_to_results(self.HEADER_TRAIN, "train")
         self.write_row_to_results(self.HEADER_TEST, "test")
+        data_to_json = {    "MAX_EPSILON": MAX_EPSILON, 
+                            "MIN_EPSILON": MIN_EPSILON, 
+                            "MAX_RHO": MAX_RHO, 
+                            "MIN_RHO": MIN_RHO, 
+                            "EXPLORATION_STOP": EXPLORATION_STOP,
+                            'EPS_to_Eval': EPS_TO_EVAL,
+                            'Eval_Interval': EVAL_INTERVAL,
+                            'seed': random_seed,
+                            'Reward_check': SCORE_TO_CHECK,
+                            'Dones_Check': NO_OF_SUCCESSFUL_DONE,
+                    } 
+        self.write_params_to_file(data_to_json)
 
     def run(self):
         self.env.reset()
@@ -116,9 +134,9 @@ class RapidExperiment(Experiment):
         if len(env_post_items_quantity.keys() - env_pre_items_quantity.keys()) > 0:
             # we need to bump up the movement actions probabilities and set flag for new item to True
             self.new_item_in_world = env_post_items_quantity.keys() - env_pre_items_quantity.keys()  # This is a set
-            self.actions_bump_up.update({'Forward': env_post_actions['Forward']})  # add all the movement actions
-            self.actions_bump_up.update({'Left': env_post_actions['Left']})
-            self.actions_bump_up.update({'Right': env_post_actions['Right']})
+            # self.actions_bump_up.update({'Forward': env_post_actions['Forward']})  # add all the movement actions
+            # self.actions_bump_up.update({'Left': env_post_actions['Left']})
+            # self.actions_bump_up.update({'Right': env_post_actions['Right']})
 
         for action in env_post_actions.keys() - env_pre_actions.keys():  # add new actions
             self.actions_bump_up.update({action: env_post_actions[action]})
@@ -126,12 +144,15 @@ class RapidExperiment(Experiment):
         brain1.generate_pddls(self.env, self.new_item_in_world)  # update the domain file
 
         # now we run post novelty trials
-        for post_novelty_trial in range(self.trials_post_learning):
+        # for post_novelty_trial in range(self.trials_post_learning):
+        post_novelty_trial = 0
+        while post_novelty_trial <= self.trials_post_learning:
             obs = self.env.reset()
             # brain1.generate_pddls(env, self.new_item_in_world)
             plan, game_action_set = brain1.call_planner("domain", "problem", self.env)  # get a plan
             # print("game action set aftert the planner = {}".format(game_action_set))
             result, failed_action, step_count = brain1.execute_plan(self.env, game_action_set, obs)
+            post_novelty_trial += 1
             # print ("result = {}  Failed Action =  {}".format(result, failed_action))
             if not result and failed_action is not None:  # cases when the plan failed for the first time and the agent needs to learn a new action using RL
                 # print ("Instantiating a RL Learner to learn a new action to solve the impasse.")
@@ -140,18 +161,17 @@ class RapidExperiment(Experiment):
                     for new_item in self.new_item_in_world:
                         if self.env.inventory_items_quantity[new_item] > 0:
                             flag_to_check_new_item_in_inv = True
-                            self.trials_post_learning+=1
+                            post_novelty_trial=0
                             print("item accidentally obtained in inv.. resetting..")
                             # time.sleep(3)
                             break
-                if flag_to_check_new_item_in_inv == True:
+                if flag_to_check_new_item_in_inv == True: # we need to reset the failed action set since we are resetting the environment.
                     brain1.failed_action_set = {}
-                    print("trials post learning: ", self.trials_post_learning)
                     continue 
                 # if self.env.inventory_items_quanity[i] for i in self.new_item_in_world
                 self.write_row_to_results([1, 0, 0, step_count, 0 - step_count, 0], "train")
                 # print ("In brain self.guided_action = {}  self.guided_policy = {}".format(self.guided_action, self.guided_policy))
-
+                print("Failed action set is: ", brain1.failed_action_set)
                 self.learned, data, data_eval = brain1.call_learner(failed_action=failed_action,
                                                                     actions_bump_up=self.actions_bump_up,
                                                                     new_item_in_the_world=self.new_item_in_world,
@@ -505,12 +525,12 @@ def to_datestring(unixtime: int, format='%Y-%m-%d_%H:%M:%S'):
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("--experiment", default="baseline")
+    ap.add_argument("--experiment", default="rapid")
     ap.add_argument("-N", "--novelty_name", default=None,
                     help="Novelty to inject: #axetobreakeasy #axetobreakhard #firecraftingtableeasy #firecraftingtablehard #rubbertree #axefirecteasy",
                     type=str)
-    ap.add_argument("-TP", "--trials_pre_novelty", default=10, help="Number of trials pre novelty", type=int)
-    ap.add_argument("-TN", "--trials_post_learning", default=20, help="Number of trials post recovering from novelty",
+    ap.add_argument("-TP", "--trials_pre_novelty", default=100, help="Number of trials pre novelty", type=int)
+    ap.add_argument("-TN", "--trials_post_learning", default=1, help="Number of trials post recovering from novelty",
                     type=int)
     ap.add_argument("-P", "--print_every", default=200, help="Number of epsiodes you want to print the results",
                     type=int)

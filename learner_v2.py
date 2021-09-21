@@ -66,7 +66,7 @@ class Learner:
         self.create_success_func = get_create_success_func_from_predicate_set(self.desired_effects)
         self.reward_funcs = RewardFunctionGenerator(plan, self.failed_action)
 
-        self.success_func = None
+        self.fsuccess_func = None
         self.clever_exploration_flag = False
         # print ("self.guided_action = {}  self.guided_policy = {}".format(self.guided_action, self.guided_policy))
         if self.guided_action and self.guided_policy:
@@ -263,7 +263,8 @@ class Learner:
     def step_env(self, action=None, orig_obs=None, info=None, done=False, store_transition=None, evaluate=False):
 
         if orig_obs is None:
-            orig_obs = self.env.observation()
+            orig_obs = self.env.get_observation()
+            print(orig_obs.shape)
         if info is None:
             info = self.env.get_info()
 

@@ -333,8 +333,7 @@ class Brain:
         self.plan = plan
         if self.render:
             env.render()
-        matching = [s for s in plan if "approach" in s]
-        # print ("matching = {}".format(matching))
+
         i = 0
         while (i < len(self.plan)):
             # print("Executing plan_step: ", plan[i])
@@ -351,6 +350,10 @@ class Brain:
                     return False, None, env.step_count
                 else:
                     i+=1
+                    if (i >= len(self.plan)):
+                        return True, None, env.step_count
+                    else:
+                        pass
             elif self.plan[i] in self.failed_action_set and 'approach' in self.plan[i]:
                 sub_plan = self.run_motion_planner(env, self.plan[i])
                 # print ("subplan = ",sub_plan)
