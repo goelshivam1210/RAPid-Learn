@@ -146,13 +146,13 @@ class StatePlaceholderWrapper(gym.ObservationWrapper):
         n_inventory_obs = len(self.env.inventory_items_quantity) + n_placeholders_inventory
 
         # [lidar_observations, inventory_observations, selected_observations, fire_flag]
-        low = np.array([0] * n_lidar_obs + [0] * n_inventory_obs + [0] + [0])
-        high = np.array(
-            [self.env.max_beam_range] * n_lidar_obs +
-            [len(self.env.inventory_items_quantity) + self.n_placeholders_inventory] * n_inventory_obs +  # inventory items
-            [len(self.env.inventory_items_quantity) + self.n_placeholders_inventory])  # selected item
+        low = [0] * n_lidar_obs + [0] * n_inventory_obs + [0] + [0]
+        high = [self.env.max_beam_range] * n_lidar_obs + \
+               [len(self.env.inventory_items_quantity) + self.n_placeholders_inventory] * n_inventory_obs + \
+               [len(self.env.inventory_items_quantity) + self.n_placeholders_inventory] + \
+               [2]
 
-        self.observation_space = spaces.Box(low, high, dtype=int)
+        self.observation_space = spaces.Box(np.array(low), np.array(high), dtype=int)
         self.env.observation_space = self.observation_space
 
     def observation(self, observation):
@@ -179,7 +179,7 @@ class StatePlaceholderWrapper(gym.ObservationWrapper):
                     lidar_obs_with_placeholders.append(0)
                 beam_counter = 0
 
-        placeholders_inventory = np.ones(self.n_placeholders_inventory, dtype=int) * 10 # TODO: check if this should be higher when new items are introduced
+        placeholders_inventory = np.zeros(self.n_placeholders_inventory, dtype=int)
         return np.hstack([lidar_obs_with_placeholders, inventory_observation, placeholders_inventory,
                           tail_observation])
 
