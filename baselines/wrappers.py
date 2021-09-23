@@ -134,12 +134,12 @@ class InfoExtenderWrapper(gym.Wrapper):
         return next_state, reward, done, info
 
 class StatePlaceholderWrapper(gym.ObservationWrapper):
-    def __init__(self, env, n_placeholders_inventory=0, n_placeholders_lidar=0, env_has_fire_flag=False):
+    def __init__(self, env, n_placeholders_inventory=0, n_placeholders_lidar=0):
         super(StatePlaceholderWrapper, self).__init__(env)
         print(f"Wrapping env with StatePlaceholderWrapper (inv: {n_placeholders_inventory}, lidar: {n_placeholders_lidar})")
         self.n_placeholders_lidar = n_placeholders_lidar
         self.n_placeholders_inventory = n_placeholders_inventory
-        self.env_has_fire_flag = env_has_fire_flag
+        self.env_has_fire_flag = hasattr(self.env, 'is_crafting_table_on_fire')
 
         # The last position is selected_item id
         n_lidar_obs = (len(self.env.items_lidar) + n_placeholders_lidar) * self.env.num_beams
@@ -149,24 +149,19 @@ class StatePlaceholderWrapper(gym.ObservationWrapper):
         low = [0] * n_lidar_obs + [0] * n_inventory_obs + [0] + [0]
         high = [self.env.max_beam_range] * n_lidar_obs + \
                [len(self.env.inventory_items_quantity) + self.n_placeholders_inventory] * n_inventory_obs + \
-               [len(self.env.inventory_items_quantity) + self.n_placeholders_inventory] + \
-               [2]
+               [len(self.env.inventory_items_quantity) + self.n_placeholders_inventory] + [1]
 
         self.observation_space = spaces.Box(np.array(low), np.array(high), dtype=int)
         self.env.observation_space = self.observation_space
 
     def observation(self, observation):
-        inventory_observation_end_index = -1 if not self.env_has_fire_flag else -2
+        # If the fire flag is there, the inventory part of the obs will stop at the second-to-last index
+        selected_index = -2 if self.env_has_fire_flag else -1
 
         lidar_observation = observation[0:len(self.env.items_lidar) * self.env.num_beams]
-        inventory_observation = observation[len(self.env.items_lidar) * self.env.num_beams:inventory_observation_end_index]
 
-        # the last element of the obs is the selected item, unless for the novelty envs, where the last element is
-        # the fire flag and the selected item is the second-to-last item instead.
-        if self.env_has_fire_flag:
-            tail_observation = [observation[-2], observation[-1]]
-        else:
-            tail_observation = [observation[-1], 0]
+        inventory_observation = observation[len(self.env.items_lidar) * self.env.num_beams:(len(
+            self.env.items_lidar) * self.env.num_beams) + len(self.env.inventory_items_quantity)]
 
         # insert the placeholders after each beam signal
         lidar_obs_with_placeholders = []
@@ -179,9 +174,14 @@ class StatePlaceholderWrapper(gym.ObservationWrapper):
                     lidar_obs_with_placeholders.append(0)
                 beam_counter = 0
 
+        # the last element of the obs is the selected item, unless for the novelty envs, where the last element is
+        # the fire flag and the selected item is the second-to-last item instead.
+
         placeholders_inventory = np.zeros(self.n_placeholders_inventory, dtype=int)
-        return np.hstack([lidar_obs_with_placeholders, inventory_observation, placeholders_inventory,
-                          tail_observation])
+        return np.hstack(
+            [lidar_obs_with_placeholders, inventory_observation, placeholders_inventory, [observation[selected_index]],
+             [observation[-1]] if self.env_has_fire_flag else [0]])
+
 
 class ActionPlaceholderWrapper(gym.ActionWrapper):
     def __init__(self, env, n_placeholders_actions=0):
