@@ -2,14 +2,14 @@ import math
 import random
 
 #Smart-exploration
-# MAX_EPSILON = 0.2
+MAX_EPSILON = 0.2
 
 # #Epsilon-greedy
-MAX_EPSILON = 0.1
+# MAX_EPSILON = 0.1
 
 MAX_TIMESTEPS = 300
-MAX_RHO = 0.4 
-MIN_RHO = 0.10
+MAX_RHO = 0.4
+MIN_RHO = 0.05
 EXPLORATION_STOP = 5000 #10000
 # EXPLORATION_STOP = 10000 #10000
 SCORE_TO_CHECK = 900

@@ -75,7 +75,7 @@ class RapidExperiment(Experiment):
 
     def __init__(self, args):
         super(RapidExperiment, self).__init__(args, self.HEADER_TRAIN, self.HEADER_TEST,
-                                              "_" + args['novelty_name'] + "_"+ args['learner'])
+                                              "_" + args['novelty_name'] + "_"+ args['learner'] + "_"+ args['exploration_mode'])
         os.makedirs(self.results_dir, exist_ok=True)
 
         if args['learner'] == 'both':

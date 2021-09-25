@@ -251,11 +251,11 @@ class SimpleDQN(object):
 
     def save_model(self, novelty_name, operator_name, path_to_save=None):
         if self.guided_action and self.guided_policy:
-            experiment_file_name = str(novelty_name) + "_both_" + str(operator_name) 
+            experiment_file_name = str(novelty_name) + "_both_" + str(self.exploration_mode) + "_" + str(operator_name) 
         elif self.guided_action and not self.guided_policy:        
-            experiment_file_name = str(novelty_name) + '_action-biasing_' + str(self.exporation_mode) + "_" + str(operator_name) 
+            experiment_file_name = str(novelty_name) + '_action-biasing_' + str(self.exploration_mode) + "_" + str(operator_name) 
         elif self.guided_policy and not self.guided_action:
-            experiment_file_name = str(novelty_name) + '_guided-policy_' + str(self.exporation_mode) + "_" + str(operator_name) 
+            experiment_file_name = str(novelty_name) + '_guided-policy_' + str(self.exploration_mode) + "_" + str(operator_name) 
         else:
             experiment_file_name = str(novelty_name) + '_epsilon-greedy_' + str(operator_name) 
         if not path_to_save:
@@ -268,11 +268,11 @@ class SimpleDQN(object):
         if transfer_from is not None: # if the policy needs to be transferred, then load the from that file.
             novelty_name = transfer_from
         if self.guided_action and self.guided_policy:
-            experiment_file_name = str(novelty_name) + "_both_" + str(self.exporation_mode) + "_" + str(operator_name) 
+            experiment_file_name = str(novelty_name) + "_both_" + str(self.exploration_mode) + "_" + str(operator_name) 
         elif self.guided_action and not self.guided_policy:        
-            experiment_file_name = str(novelty_name) + '_action-biasing_' + str(self.exporation_mode) + "_" + str(operator_name) 
+            experiment_file_name = str(novelty_name) + '_action-biasing_' + str(self.exploration_mode) + "_" + str(operator_name) 
         elif self.guided_policy and not self.guided_action:
-            experiment_file_name = str(novelty_name) + '_guided-policy_' + str(self.exporation_mode) + "_" + str(operator_name) 
+            experiment_file_name = str(novelty_name) + '_guided-policy_' + str(self.exploration_mode) + "_" + str(operator_name) 
         else:
             experiment_file_name = str(novelty_name) + '_epsilon-greedy_' + str(operator_name) 
 
