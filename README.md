@@ -41,7 +41,7 @@ To run the RAPidLearn -->
  3. `'rubbertree'` -->
 
 In order to run experiments run the following script <BR>
-``` python experiment.py --TP <trials pre novelty> --N <novelty_name> --L <learner_name>```
+``` python experiment.py --TP <trials pre novelty> --TN <trials_post_novelty> --N <novelty_name> --L <learner_name> -E <exploration_mode> -R <render>```
 
 `novelty_name`
  1. `'axetobreakeasy'`
@@ -49,10 +49,16 @@ In order to run experiments run the following script <BR>
  3. `'firecraftingtableeasy'`
  4. `'firecraftingtablehard'`
  5. `'rubbertree'`
+ 6. `'axefirecteasy'`
+ 7. `'rubbertreehard'`
 
 `learner_name` <BR>
   1. `'epsilon-greedy'`
   2. `'smart-exploration'`   
+ 
+ `exploration_mode` <BR>
+  1. `'uniform'`
+  2. `'ucb'`   
 
 Run <BR>
 ``` python experiment.py```
