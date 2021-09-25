@@ -29,7 +29,7 @@ from utils import AStarOperator, AStarPlanner
 # from gym_novel_gridworlds.observation_wrappers import LidarInFront, AgentMap
 from gym_novel_gridworlds.novelty_wrappers import inject_novelty
 from generate_pddl import *
-from learner_v2 import *
+from learner_v2 import Learner
 # from operator_generalization import *
 
 action_map = {'moveforward':'Forward',
@@ -123,7 +123,7 @@ class Brain:
             # print("succesfully completed the task without any hassle!")
             # print("Needed to transfer: ", self.completed_trails)
 
-    def call_learner(self, failed_action, plan, actions_bump_up = None, new_item_in_the_world = None, env=None, transfer = None, guided_action = False, guided_policy = False):
+    def call_learner(self, failed_action, plan, actions_bump_up = None, new_item_in_the_world = None, env=None, transfer = None, guided_action = False, guided_policy = False, exploration_mode = 'uniform'):
         # This function instantiates a RL learner to start finding interesting states to send 
         # to the planner
 
@@ -142,16 +142,12 @@ class Brain:
             
         self.current_failed_action = failed_action
         if failed_action not in self.learned_policies_dict:
-            # print ("")
-            # print("Env observation shape:", env.observation_space.shape[0])
             self.actions_bump_up.update({failed_action:env.actions_id[failed_action]}) # add failed actions in the list
-            # print ("guided_action = {}  guided_policy = {}".format(guided_action, guided_policy))
-            self.learner = Learner(failed_action = failed_action, env = env, plan = plan, actions_bump_up= self.actions_bump_up,new_item_in_the_world= self.new_item_in_world, guided_policy=guided_policy, guided_action=guided_action)
+            self.learner = Learner(failed_action = failed_action, env = env, plan = plan, actions_bump_up= self.actions_bump_up,new_item_in_the_world= self.new_item_in_world, guided_policy=guided_policy, guided_action=guided_action, exploration_mode = exploration_mode)
             self.learned_policies_dict[failed_action] = self.learner # save the learner instance object to the learned poliocies dict.
             learned, data, data_eval = self.learner.learn_policy(self.novelty_name, self.learned_policies_dict, self.failed_action_set, transfer=transfer) # learn to reach the goal state, if reached save the learned policy using novelty_name
             return learned, data, data_eval
         else:
-            # print("\n Learner Using the learned policy")
             played, is_reward_met = self.learned_policies_dict[failed_action].play_learned_policy(env, novelty_name=self.novelty_name, operator_name=failed_action) # returns whether the policy was successfully played or not
             if is_reward_met:
                 for action_to_remove in self.learned_policies_dict[failed_action].reward_funcs.actions_that_generate_objects_required: # now we remove the actions for those objects
@@ -172,10 +168,6 @@ class Brain:
         run_script = "Metric-FF-v2.1/./ff -o "+self.pddl_dir+os.sep+domain+".pddl -f "+self.pddl_dir+os.sep+problem+".pddl -s 0"
         output = subprocess.getoutput(run_script)
         plan, self.game_action_set = self._output_to_plan(output, env)
-        # catch here and remove the actions from the plan
-        # if self.novelty_name is not None and self.learner.failed_action_set is not None:
-        #     for x in self.actions_to_remove:
-        #         game_action_set.remove(x)
         return plan, self.game_action_set
 
     def _output_to_plan(self, output, env):
@@ -186,7 +178,6 @@ class Brain:
         '''
 
         ff_plan = re.findall(r"\d+?: (.+)", output.lower()) # matches the string to find the plan bit from the ffmetric output.
-        # print ("ffplan = {}".format(ff_plan))
         action_set = []
         for i in range (len(ff_plan)):
             if ff_plan[i].split(" ")[0] == "approach":
@@ -206,18 +197,15 @@ class Brain:
         if ff_plan[-1] == "reach-goal":
             ff_plan = ff_plan[:-1]
         
-        # print ("game action set  = {}".format(action_set))
         # convert the action set to the actions permissable in the domain
         game_action_set = copy.deepcopy(action_set)
-        # print ("game action set = {}".format(game_action_set))
+
         for i in range(len(game_action_set)):
             if game_action_set[i].split(" ")[0] != "approach" and game_action_set[i].split("_")[0] != "Select":
                 game_action_set[i] = action_map[game_action_set[i]]
-        # print ("game action set = {}".format(game_action_set))
         for i in range(len(game_action_set)):
             if game_action_set[i] in action_map:
                 game_action_set[i] = env.actions_id[game_action_set[i]]
-        # print (game_action_set)
         return action_set, game_action_set
 
     def instantiate_env(self, env_id, novelty_family=None, inject=False):
@@ -290,12 +278,9 @@ class Brain:
             ro = 'SOUTH'
 
         rxs, rys = astar_planner.planning(sx, sy, gx_, gy_)
-        # print("Goal location: {} {}".format(gx_, gy_) )
-        # print ("rxs and rys generated from the plan = {} {}".format(rxs, rys))
         sx, sy, plan = astar_operator.generateActionsFromPlan(sx, sy, so, rxs, rys, ro)
         return plan
         ## rx and ry have all the x, y points to use and         
-        # a_star = AStarPlanner(ox, oy, grid_size, robot_radius)
     
     def inject_novelty(self, novelty_name, env=None):
 

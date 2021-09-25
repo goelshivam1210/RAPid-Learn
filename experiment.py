@@ -78,12 +78,20 @@ class RapidExperiment(Experiment):
                                               "_" + args['novelty_name'] + "_"+ args['learner'])
         os.makedirs(self.results_dir, exist_ok=True)
 
-        if args['learner'] == 'smart-exploration':
+        if args['learner'] == 'both':
             self.guided_action = True
+            self.guided_policy = True
+        elif args['learner'] == 'action_biasing':
+            self.guided_action = True
+            self.guided_policy = False
+        elif args['learner'] == 'guided_policy':
+            self.guided_action = False
             self.guided_policy = True
         else:
             self.guided_action = False
             self.guided_policy = False
+
+        self.exploration_mode  = args['exploration_mode']
 
         self.write_row_to_results(self.HEADER_TRAIN, "train")
         self.write_row_to_results(self.HEADER_TEST, "test")
@@ -178,7 +186,8 @@ class RapidExperiment(Experiment):
                                                                     env=self.env, transfer=args['transfer'],
                                                                     plan = game_action_set,
                                                                     guided_action=self.guided_action,
-                                                                    guided_policy=self.guided_policy)
+                                                                    guided_policy=self.guided_policy,
+                                                                    exploration_mode=self.exploration_mode)
                 if self.learned:  # when the agent successfully learns a new action, it should now test it to re-run the environment.
                     # data_3 = data[3][-1]
                     for i in range(len(data[0])):
@@ -534,9 +543,11 @@ if __name__ == "__main__":
                     type=int)
     ap.add_argument("-P", "--print_every", default=200, help="Number of epsiodes you want to print the results",
                     type=int)
-    ap.add_argument("-L", "--learner", default='epsilon-greedy', help="epsilon-greedy, smart-exploration", type=str)
+    ap.add_argument("-L", "--learner", default='epsilon-greedy', help="epsilon-greedy, both, action_biasing, guided_policy", type=str)
     ap.add_argument("-T", "--transfer", default=None, type=str)
     ap.add_argument("-R", "--render", default=False, type=bool)
+    ap.add_argument("-E", "--exploration_mode", default='uniform' , help="uniform, ucb", type=str)
+
     ap.add_argument("--load_model", default=None, type=str)
     ap.add_argument("--train_episodes", default=10, type=int)
     ap.add_argument("--reward_shaping", dest="reward_shaping", action="store_true")

@@ -32,7 +32,7 @@ action_map = {'moveforward':'Forward',
 
 class Learner:
     def __init__(self, failed_action, env, plan, actions_bump_up, guided_action = False,\
-                 new_item_in_the_world=None, guided_policy=False, novelty_flag=False) -> None:
+                 new_item_in_the_world=None, guided_policy=False, novelty_flag=False, exploration_mode = 'uniform') -> None:
 
         self.env_to_reset = copy.deepcopy(env) # copy the complete environment instance
         self.env = env
@@ -42,6 +42,7 @@ class Learner:
         self.guided_policy = guided_policy
         self.learned_failed_action = False
         self.guided_action = guided_action
+        self.exploration_mode = exploration_mode
         if not self.learned_failed_action:
             self.mode = 'exploration' # we are exploring the novel environment to stitch the plan by learning the new failed action.
         else:
@@ -67,15 +68,15 @@ class Learner:
         self.reward_funcs = RewardFunctionGenerator(plan, self.failed_action)
 
         self.fsuccess_func = None
-        self.clever_exploration_flag = False
+        # self.clever_exploration_flag = False
         # print ("self.guided_action = {}  self.guided_policy = {}".format(self.guided_action, self.guided_policy))
-        if self.guided_action and self.guided_policy:
-            self.clever_exploration_flag = True
+        # if self.guided_action and self.guided_policy:
+        #     self.clever_exploration_flag = True
 
         agent = SimpleDQN(int(env.action_space.n),int(env.observation_space.shape[0]),
                         NUM_HIDDEN,LEARNING_RATE,GAMMA,DECAY_RATE,MAX_EPSILON,
-                        self.clever_exploration_flag, self.actions_bump_up,
-                        self.env.actions_id, random_seed)
+                        self.guided_action, self.actions_bump_up,
+                        self.env.actions_id, random_seed, self.guided_policy, self.exploration_mode)
         agent.set_explore_epsilon(MAX_EPSILON)
 
         self.learning_agent = agent
@@ -123,8 +124,6 @@ class Learner:
         self.Steps_eval_mean = [] # storing the number of steps in each episode
         self.Episode_eval = [] # storing the number of episodes during evaluations
         data_eval = [self.R_eval_mean, self.Done_eval_mean, self.Steps_eval_mean, self.Episode_eval]
-
-        # if not self.success_func:
         self.learned_failed_action = self.run_episode(transfer, novelty_name)
 
         if self.learned_failed_action:
@@ -209,14 +208,24 @@ class Learner:
                         reward_per_episode += rew
                         done = False
 
+            goal_reached = False
             while True:
-                obs, action, done, info = self.step_env(orig_obs=obs, info=info, done=done)
+                obs, action, done, info = self.step_env(orig_obs=obs, info=info, done=done, timestep = episode_timesteps)
                 episode_timesteps += 1
                 self.is_success_met = self.success_func(obs,info) # self.success_func returns a boolean indicating whether the desired effects were met
                 self.reward_success_met = self.reward_funcs.check_success(info)
-                if self.is_success_met or self.reward_success_met:    
-                    done = True
-                    rew = 1000
+                if self.is_success_met or self.reward_success_met:
+                    # print("Success met")
+                    if self.reward_funcs.catastrophic_condition_met(self.env):    
+                        # print("Reached goal \n")
+                        done = True
+                        goal_reached = True
+                        rew = 1000
+                    else:
+                        # print ("catastrophy met \n")
+                        done = True # this done is to come out of the episode loop
+                        goal_reached = False # this is used to save whether the DONE is true or not. Done means when the agent reached the goal.
+                        rew = -250 # penalizing for reaching an unplannable state
                 else:
                     done = False
                     rew = -1
@@ -228,6 +237,7 @@ class Learner:
                 if done or episode_timesteps > MAX_TIMESTEPS:
                         
                     self.learning_agent.finish_episode()
+                    self.learning_agent.reset_action_counter() 
                     if episode % UPDATE_RATE == 0:
                         self.learning_agent.update_parameters()
 
@@ -238,15 +248,19 @@ class Learner:
                         self.Epsilons.append(self.learning_agent._explore_eps)
                         self.Rhos.append(self.rho)
                         self.Steps.append(episode_timesteps)
-                        self.Done.append(1)
+                        if goal_reached:
+                            self.Done.append(1)
+                        else:
+                            self.Done.append(0)
                         self.R.append(reward_per_episode)
                         if episode > NO_OF_EPS_TO_CHECK:
-                            if np.mean(self.R[-NO_OF_EPS_TO_CHECK:]) > SCORE_TO_CHECK: # check the average reward for last 70 episodes
+                            if np.mean(self.R[-NO_OF_EPS_TO_CHECK:]) > SCORE_TO_CHECK and np.mean(self.R[-10:]) > SCORE_TO_CHECK: # check the average reward for last 70 episodes
                                 # for future we can write an evaluation function here which runs a evaluation on the current policy.
-                                if  np.sum(self.Done[-NO_OF_DONES_TO_CHECK:]) > NO_OF_SUCCESSFUL_DONE: # and check the success percentage of the agent > 80%.
-                                    print ("The agent has learned to reach the subgoal")
-                                    # plt.show()
-                                    return True  
+                                if  np.sum(self.Done[-NO_OF_DONES_TO_CHECK:]) > NO_OF_SUCCESSFUL_DONE and np.mean(self.Done[-10:]) > NO_OF_SUCCESSFUL_DONE/NO_OF_DONES_TO_CHECK: # and check the success percentage of the agent > 80%.
+                                    if abs(np.mean(self.Done[-NO_OF_DONES_TO_CHECK:]) - np.mean(self.Done[-10:])) < 0.05:
+                                        print ("The agent has learned to reach the subgoal")
+                                        # plt.show()
+                                        return True
                         break
                     elif episode_timesteps >= MAX_TIMESTEPS:
                         if episode % PRINT_EVERY == 0:
@@ -260,7 +274,7 @@ class Learner:
                         break
         return False
 
-    def step_env(self, action=None, orig_obs=None, info=None, done=False, store_transition=None, evaluate=False):
+    def step_env(self, action=None, orig_obs=None, info=None, done=False, store_transition=None, evaluate=False, timestep = 0):
 
         if orig_obs is None:
             orig_obs = self.env.get_observation()
@@ -271,11 +285,12 @@ class Learner:
         obs = orig_obs.copy()
 
         # self.learning_agent.store_obs(obs)
+        # print ("self.actions_bump_up = ", self.actions_bump_up)
 
         if self.mode == 'exploration' and action is None:
-            action = self.learning_agent.process_step(obs, True)
+            action = self.learning_agent.process_step(obs, True, timestep=timestep)
         elif self.mode is not 'exploration' and action is None: # self.mode is exploitation -> greedy policy used
-            action = self.learning_agent.process_step(obs,False)
+            action = self.learning_agent.process_step(obs,False, timestep=timestep)
         elif action is not None:
             action = self.learning_agent.process_step(obs, False, action)
         
@@ -303,7 +318,7 @@ class Learner:
         while True:
             
             obs, action, done, info = self.step_env(orig_obs=obs, info=info, done=done)
-            # self.env.render()
+            self.env.render()
             self.is_success_met = self.success_func(self.env.get_observation(),self.env.get_info()) # self.success_func returns a boolean indicating whether the desired effects were met
             self.reward_success_met = self.reward_funcs.check_success(info)
 
