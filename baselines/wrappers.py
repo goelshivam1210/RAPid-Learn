@@ -177,10 +177,11 @@ class StatePlaceholderWrapper(gym.ObservationWrapper):
         # the last element of the obs is the selected item, unless for the novelty envs, where the last element is
         # the fire flag and the selected item is the second-to-last item instead.
 
-        placeholders_inventory = np.zeros(self.n_placeholders_inventory, dtype=int)
-        return np.hstack(
+        placeholders_inventory = np.zeros(self.n_placeholders_inventory)
+        obs = np.hstack(
             [lidar_obs_with_placeholders, inventory_observation, placeholders_inventory, [observation[selected_index]],
              [observation[-1]] if self.env_has_fire_flag else [0]])
+        return obs.astype(int)
 
 
 class ActionPlaceholderWrapper(gym.ActionWrapper):
