@@ -4,6 +4,7 @@
 
 
 (:types
+	water - physobj
 	rubber_tree - physobj
     plank - breakable
     plank - placeable
@@ -140,7 +141,7 @@
     :parameters    (?physobj01 - physobj )
     :precondition  (and
         (>= ( inventory ?physobj01) 1)
-        (holding air)
+        ; (holding air)
     )
     :effect  (and
         (holding ?physobj01)

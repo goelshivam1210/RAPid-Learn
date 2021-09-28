@@ -2,6 +2,7 @@ import numpy as np
 from collections import defaultdict
 import time
 import os 
+from generate_pddl import *
 
 LOG_STR="tree_log"
 PLANK_STR="plank"
@@ -28,6 +29,18 @@ ACTION_REMAPPING = {'Break': 'break\n',\
 'Craft_stick': 'craftstick\n', \
 'Extract_rubber': 'extractrubber\n',\
 'Craft_pogo_stick':'craftpogo_stick\n'}
+
+# action_map = {'moveforward':'Forward',
+#         'turnleft':'Left',
+#         'turnright':'Right',
+#         'break': 'Break',
+#         'place':'Place_tree_tap',
+#         'extractrubber':'Extract_rubber',
+#         'craftplank': 'Craft_plank',
+#         'craftstick':'Craft_stick',
+#         'crafttree_tap': 'Craft_tree_tap',
+#         'craftpogo_stick': 'Craft_pogo_stick',
+#         'select': 'Select'}
 
 # for colored print statements
 from colorama import Fore, Style, init
@@ -365,5 +378,39 @@ class RewardFunctionGenerator:
     def store_init_info(self, info):
         self.init_info = info
 
+    # this function checks whether the agent can plan or not.
+    def catastrophic_condition_met(self, env):
+        prob_filename = 'catastrophic_problem'
+        domain_filename = 'domain'
+        self.generate_pddls(env, prob_filename)        
+        is_reachable = self.call_planner(domain = domain_filename, problem = prob_filename)
+        # if not is_reachable:
+        #     print("Inventory: ", env.inventory_items_quantity)
+        #     print("world: ", env.items_quantity)
+        return is_reachable
+
+    def generate_pddls(self, env, prob_filename):
+        self.pddl_dir = "PDDL"
+        os.makedirs(self.pddl_dir, exist_ok = True)
+        generate_problem_pddl(self.pddl_dir, env, filename = prob_filename)
+            
+    def call_planner(self, domain, problem):
+        '''
+            Given a domain and a problem file
+            This function return the ffmetric Planner output.
+            In the action format
+        '''
+    
+        run_script = "Metric-FF-v2.1/./ff -o "+self.pddl_dir+os.sep+domain+".pddl -f "+self.pddl_dir+os.sep+problem+".pddl -s 0"
+        try:
+            output = subprocess.getoutput(run_script)
+            if "unsolvable" in output:
+                # print ("Plan not found with FF! Error: {}".format(output))
+                return False
+            return True
+        except:
+            print("Not reachable")
+            # time.sleep(10)
+            return False
 if __name__ == "__main__":
     reward = RewardFunctionGenerator()

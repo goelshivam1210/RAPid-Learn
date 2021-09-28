@@ -2,6 +2,7 @@ from typing import KeysView
 import numpy as np
 import time
 import os
+import math
 #from chainer import cuda
 
 #import cupy as cp
@@ -17,7 +18,7 @@ class SimpleDQN(object):
     
     
     # constructor
-    def __init__(self, num_actions, input_size, hidden_layer_size, learning_rate,gamma,decay_rate,greedy_e_epsilon,clever_exploration_flag,actions_to_be_bumped, actions_id, random_seed):
+    def __init__(self, num_actions, input_size, hidden_layer_size, learning_rate,gamma,decay_rate,greedy_e_epsilon,guided_action,actions_to_be_bumped, actions_id, random_seed, guided_policy, exploration_mode):
         # store hyper-params
         self._A = num_actions
         self._D = input_size
@@ -38,10 +39,14 @@ class SimpleDQN(object):
         
         self.log_dir = 'policies'
         self.env_id = 'PogoStick-v1'
-        self.clever_exploration = clever_exploration_flag
+        self.guided_action = guided_action
+        self.guided_policy = guided_policy
         self.actions_to_be_bumped = actions_to_be_bumped
         self.all_actions_id = actions_id
-        
+        self.action_counter = np.zeros((self._A))
+        self.exploration_mode = exploration_mode
+        # self.exploration_mode = 'ucb' # For UCB, 'ucb', and for uniform, 'uniform'
+        self.c = 0.0005
         os.makedirs(self.log_dir, exist_ok = True)
 
     def init_model(self,random_seed):
@@ -79,6 +84,9 @@ class SimpleDQN(object):
     
         return discounted_r
     
+    def reset_action_counter(self):
+        self.action_counter = np.zeros((self._A))
+
     # feed input to network and get result
     def policy_forward(self,x):
         if(len(x.shape)==1):
@@ -126,9 +134,6 @@ class SimpleDQN(object):
         else:
           self._dW1 = self._epx.T.dot(dh) 
     
-
-        #print((time.time()-t0)*1000, ' ms, @final bprop')
-
         return {'W1':self._dW1, 'W2':dW2}
     
     def set_explore_epsilon(self,e):
@@ -136,11 +141,11 @@ class SimpleDQN(object):
     
     # input: current state/observation
     # output: action index
-    def process_step(self, x, exploring, action = None):
+    def process_step(self, x, exploring, timestep, action = None):
 
         # feed input through network and get output action distribution and hidden layer
         aprob, h = self.policy_forward(x)
-        
+
         # if exploring
         if exploring == True and action is None:
             # greedy-e exploration
@@ -148,26 +153,33 @@ class SimpleDQN(object):
             #print(rand_e)
             if rand_e < self._explore_eps:
                 # set all actions to be equal probability
-                        if self.clever_exploration == True:
-                            # print ("actions = ", self.actions_to_be_bumped)
+                        if self.guided_action == True and self.exploration_mode == 'uniform':
                             actions_to_bump_up_sum = sum(aprob[0][i] for i in list(self.actions_to_be_bumped.values()))
-                            # actions_to_bump_down_sum = sum(aprob[0]) - actions_to_bump_up_sum
                             for i in range(len(aprob[0])): # bump up the probabilities
                                 if i in list(self.actions_to_be_bumped.values()):
                                     aprob[0][i] = ((1+actions_to_bump_up_sum)*(aprob[0][i]))/(2*actions_to_bump_up_sum) 
                                 else:
                                     aprob[0][i] = aprob[0][i]/2
-                            # print ("aprob after bump up = ",sum(aprob[0]))
-                            # print ("action probs = {}".format(aprob[0]))
+                        elif self.guided_action == True and self.exploration_mode == 'ucb' and timestep > 0:
+                            for i in range(len(aprob[0])):
+                                if i in list(self.actions_to_be_bumped.values()):
+                                    aprob[0][i] += self.c * math.sqrt(math.log(timestep) / (self.action_counter[i]+0.01))
+                                else:
+                                    aprob[0][i] -= self.c * math.sqrt(math.log(timestep) / (self.action_counter[i]+0.01))
+                                    if aprob[0][i] < 0:
+                                        aprob[0][i] = 0
+                            sigma_action = np.sum(aprob[0])
+                            aprob[0] = [aprob[0][i]/sigma_action for i in range(len(aprob[0]))]
                         else:
                             aprob[0] = [ 1.0/len(aprob[0]) for i in range(len(aprob[0]))]
-                #print("!")r
         elif action is not None:
             aprob[0] = [0 for i in range(len(aprob[0]))]
             aprob[0][action] = 1
         
         
         if np.isnan(np.sum(aprob)):
+            # print("Nan found at timestep: ", timestep)
+            # time.sleep(3)
             print(aprob)
             aprob[0] = [ 1.0/len(aprob[0]) for i in range(len(aprob[0]))]
             print(aprob)
@@ -188,7 +200,8 @@ class SimpleDQN(object):
         self._dlogps.append(dlogsoftmax)
         
         t  = time.time()
-
+        # update the action counter
+        self.action_counter[a]+=1
         return a
         
     # after process_step, this function needs to be called to set the reward
@@ -237,9 +250,13 @@ class SimpleDQN(object):
             self._grad_buffer[k] = np.zeros_like(v) # reset batch gradient buffer
 
     def save_model(self, novelty_name, operator_name, path_to_save=None):
-        if self.clever_exploration:
-            experiment_file_name = str(novelty_name) + "_smart-exploration_" + str(operator_name) 
-        else:        
+        if self.guided_action and self.guided_policy:
+            experiment_file_name = str(novelty_name) + "_both_" + str(self.exploration_mode) + "_" + str(operator_name) 
+        elif self.guided_action and not self.guided_policy:        
+            experiment_file_name = str(novelty_name) + '_action-biasing_' + str(self.exploration_mode) + "_" + str(operator_name) 
+        elif self.guided_policy and not self.guided_action:
+            experiment_file_name = str(novelty_name) + '_guided-policy_' + str(self.exploration_mode) + "_" + str(operator_name) 
+        else:
             experiment_file_name = str(novelty_name) + '_epsilon-greedy_' + str(operator_name) 
         if not path_to_save:
             path_to_save = self.log_dir + os.sep + self.env_id + '_' + experiment_file_name + '.npz'
@@ -250,11 +267,15 @@ class SimpleDQN(object):
     def load_model(self, novelty_name, operator_name, transfer_from = None, path_to_load=None):
         if transfer_from is not None: # if the policy needs to be transferred, then load the from that file.
             novelty_name = transfer_from
-        if self.clever_exploration:
-            experiment_file_name = str(novelty_name) + "_smart-exploration_" + str(operator_name) 
-        else:        
+        if self.guided_action and self.guided_policy:
+            experiment_file_name = str(novelty_name) + "_both_" + str(self.exploration_mode) + "_" + str(operator_name) 
+        elif self.guided_action and not self.guided_policy:        
+            experiment_file_name = str(novelty_name) + '_action-biasing_' + str(self.exploration_mode) + "_" + str(operator_name) 
+        elif self.guided_policy and not self.guided_action:
+            experiment_file_name = str(novelty_name) + '_guided-policy_' + str(self.exploration_mode) + "_" + str(operator_name) 
+        else:
             experiment_file_name = str(novelty_name) + '_epsilon-greedy_' + str(operator_name) 
-        # experiment_file_name = str(novelty_name) + '_' + str(operator_name)
+
         if not path_to_load:
             path_to_load = self.log_dir + os.sep + self.env_id + '_' + experiment_file_name + '.npz'
         data = np.load(path_to_load)
