@@ -220,15 +220,15 @@ class Learner:
                         # print("Reached goal \n")
                         done = True
                         goal_reached = True
-                        rew = 1000
+                        rew = POSITIVE_REINFORCEMENT
                     else:
                         # print ("catastrophy met \n")
                         done = True # this done is to come out of the episode loop
                         goal_reached = False # this is used to save whether the DONE is true or not. Done means when the agent reached the goal.
-                        rew = -250 # penalizing for reaching an unplannable state
+                        rew = NEGATIVE_REINFORCEMENT # penalizing for reaching an unplannable state
                 else:
                     done = False
-                    rew = -1
+                    rew = NORMAL_REINFORCEMENT
                 # agent.give_reward(reward)
                 self.learning_agent.give_reward(rew)
                 # here we update the network with the observation and reward
@@ -242,7 +242,7 @@ class Learner:
                         self.learning_agent.update_parameters()
 
                     if done:
-                        if episode % PRINT_EVERY == 0:
+                        if episode>0 and episode%PRINT_EVERY == 0:
                             print ("{}--EP >>{}, steps>>{},  Rew>>{}, done({})>>{}, eps>>{} rho>>{} ".format(self.novelty_name, episode, episode_timesteps, reward_per_episode, NO_OF_DONES_TO_CHECK, np.mean(self.Done[-NO_OF_DONES_TO_CHECK:]), round(self.learning_agent._explore_eps, 3), round(self.rho, 3)))
                             print("\n")
                         self.Epsilons.append(self.learning_agent._explore_eps)
@@ -263,7 +263,7 @@ class Learner:
                                         return True
                         break
                     elif episode_timesteps >= MAX_TIMESTEPS:
-                        if episode % PRINT_EVERY == 0:
+                        if episode>0 and episode%PRINT_EVERY == 0:
                             print ("{}--EP >>{}, steps>>{},  Rew>>{}, done({})>>{}, eps>>{} rho>>{} ".format(self.novelty_name, episode, episode_timesteps, reward_per_episode, NO_OF_DONES_TO_CHECK, np.mean(self.Done[-NO_OF_DONES_TO_CHECK:]), round(self.learning_agent._explore_eps, 3), round(self.rho, 3)))
                             print("\n")
                         self.Epsilons.append(self.learning_agent._explore_eps)
