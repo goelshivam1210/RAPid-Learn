@@ -217,7 +217,7 @@ class BaselineExperiment(Experiment):
     N_PLACEHOLDERS_INVENTORY = 2
     N_PLACEHOLDERS_LIDAR = 2
     N_PLACEHOLDERS_ACTIONS = 3
-    EVAL_EVERY_N_EPISODES = 500
+    EVAL_EVERY_N_EPISODES = 100
 
     def __init__(self, args):
         self.TRAIN_EPISODES = args["train_episodes"]
