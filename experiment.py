@@ -474,7 +474,7 @@ class PolicyGradientExperiment(Experiment):
             info = self.env.get_info()
 
             while True:
-                action = self.model.process_step(obs, True)
+                action = self.model.process_step(obs, True, episode_timesteps)
                 obs, rew, done, info = self.env.step(action)
 
                 episode_timesteps += 1
@@ -539,22 +539,22 @@ def to_datestring(unixtime: int, format='%Y-%m-%d_%H:%M:%S'):
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("--experiment", default="rapid")
-    ap.add_argument("-N", "--novelty_name", default=None,
+    ap.add_argument("--experiment", default="baseline")
+    ap.add_argument("-N", "--novelty_name", default="axetobreakeasy",
                     help="Novelty to inject: #axetobreakeasy #axetobreakhard #firecraftingtableeasy #firecraftingtablehard #rubbertree #axefirecteasy",
                     type=str)
-    ap.add_argument("-TP", "--trials_pre_novelty", default=100, help="Number of trials pre novelty", type=int)
-    ap.add_argument("-TN", "--trials_post_learning", default=1, help="Number of trials post recovering from novelty",
+    ap.add_argument("-TP", "--trials_pre_novelty", default=30, help="Number of trials pre novelty", type=int)
+    ap.add_argument("-TN", "--trials_post_learning", default=10, help="Number of trials post recovering from novelty",
                     type=int)
     ap.add_argument("-P", "--print_every", default=200, help="Number of epsiodes you want to print the results",
                     type=int)
     ap.add_argument("-L", "--learner", default='epsilon-greedy', help="epsilon-greedy, both, action_biasing, guided_policy", type=str)
     ap.add_argument("-T", "--transfer", default=None, type=str)
     ap.add_argument("-R", "--render", default=False, type=bool)
-    ap.add_argument("-E", "--exploration_mode", default='uniform' , help="uniform, ucb", type=str)
+    ap.add_argument("-E", "--exploration_mode", default='uniform', help="uniform, ucb", type=str)
 
     ap.add_argument("--load_model", default=None, type=str)
-    ap.add_argument("--train_episodes", default=10, type=int)
+    ap.add_argument("--train_episodes", default=500, type=int)
     ap.add_argument("--reward_shaping", dest="reward_shaping", action="store_true")
     ap.add_argument("--no_reward_shaping", dest="reward_shaping", action="store_false")
     ap.set_defaults(reward_shaping=True)

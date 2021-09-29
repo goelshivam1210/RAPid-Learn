@@ -2,7 +2,7 @@
 ## Pre-novelty training
 Train both policy gradient and PPO on the prenovelty crafting task using:
   - `python experiment.py --experiment baseline --train_episodes 5000 --reward_shaping --algorithm PPO --trials_pre_novelty 30 --trials_post_learning 0`
-  - `python experiment.py --experiment policy_gradient --train_episodes 5000 --reward_shaping --trials_pre_novelty 30 --trials_post_learning 0`
+  - `python experiment.py --experiment policy_gradient --train_episodes 5000 --reward_shaping --trials_pre_novelty 30 --trials_post_learning 0 --exploration_mode ucb --learner guided_policy`
 
 For both baselines find the trained model in `/RAPid-Learn/data/` (depending on date and hash, it will be called something like: 
 `2021-09-06_13:37:28-baseline-PPO-50000episodes-rewardshapingon-68074bfd5da343678bbacc75a1dbdb70/prenovelty_model.zip`). 
