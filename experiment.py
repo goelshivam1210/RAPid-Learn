@@ -527,9 +527,11 @@ class PolicyGradientExperiment(Experiment):
         obs = self.env.reset()
         info = self.env.get_info()
         done = False
+        timestep = 0
 
         while not done:
-            action = self.model.process_step(obs, True)
+            action = self.model.process_step(obs, True, timestep)
+            timestep += 1
             obs, rew, done, info = self.env.step(action)
 
 
