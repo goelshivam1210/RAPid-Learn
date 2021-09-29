@@ -52,8 +52,8 @@ def get_difference_in_obs_action_space(novelty_name):
         # rubber tree log
         d_obs_inventory = 1
 
-        # approach rubber tree, approach treetap, place treetap
-        d_actions = 3
+        # approach rubber tree, place treetap
+        d_actions = 2
 
     elif novelty_name == 'axefirecteasy':
         # axe & water
