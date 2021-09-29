@@ -240,7 +240,7 @@ class BaselineExperiment(Experiment):
                 Experiment.DATA_DIR + os.sep + self.load_model)
         else:
             os.makedirs(self._get_results_dir(), exist_ok=True)
-            self.model = PPO("MlpPolicy", self.env, verbose=0)
+            self.model = PPO("MlpPolicy", self.env, verbose=0, gamma=GAMMA)
 
         # Environment wrappers
         self.env = EpisodicWrapper(self.env, self.MAX_TIMESTEPS_PER_EPISODE)
