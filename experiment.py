@@ -131,6 +131,7 @@ class RapidExperiment(Experiment):
         env_pre_actions = copy.deepcopy(self.env.actions_id)
         # inject novelty
         self.env = brain1.inject_novelty(novelty_name=self.novelty_name, env=self.env)
+        self.env.seed(random_seed)
         self.env.reset()  # this is the key
         self.new_item_in_world = None
         self.actions_bump_up = {}
