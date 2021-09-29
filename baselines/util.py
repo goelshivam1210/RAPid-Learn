@@ -60,8 +60,8 @@ def get_difference_in_obs_action_space(novelty_name):
         d_obs_lidar = 2
         d_obs_inventory = 2
 
-        # select axe, approach axe, spray water, approach water, select water
-        d_actions = 5
+        # select axe, spray water, select water
+        d_actions = 3
 
     elif novelty_name == 'scrapeplank':
         # new scrapeplank action
