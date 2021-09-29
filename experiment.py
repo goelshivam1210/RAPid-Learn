@@ -430,7 +430,7 @@ class PolicyGradientExperiment(Experiment):
 
         self.model = SimpleDQN(int(self.env.action_space.n), int(self.env.observation_space.shape[0]),
                                NUM_HIDDEN, LEARNING_RATE, GAMMA, DECAY_RATE, MAX_EPSILON,
-                               False, {}, self.env.actions_id, random_seed)
+                               False, {}, self.env.actions_id, random_seed, self.learner, self.exploration_mode)
         print(f"Attempting to load pretrained model {self.load_model}.")
         self.model.load_model("", "", path_to_load=f"{self._get_results_dir()}{os.sep}prenovelty_model.npz")
 
