@@ -13,7 +13,7 @@ import gym
 import json
 import logging
 
-from stable_baselines3.common.callbacks import CheckpointCallback
+from stable_baselines3.common.callbacks import CheckpointCallback, CallbackList, StopTrainingOnMaxEpisodes
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.env_checker import check_env
 from stable_baselines3.common.utils import set_random_seed
@@ -279,12 +279,11 @@ class BaselineExperiment(Experiment):
         checkpoint_callback = CheckpointCallback(save_freq=self.MAX_TIMESTEPS_PER_EPISODE * 500,
                                                  save_path=self._get_results_dir() + os.sep + 'prenovelty-checkpoints',
                                                  name_prefix=BaselineExperiment.SAVED_MODEL_NAME)
+        max_episodes_stop_callback = StopTrainingOnMaxEpisodes(max_episodes=self.TRAIN_EPISODES)
         self.model.set_env(self.env)
         self.model.learn(total_timesteps=self.TRAIN_EPISODES * self.MAX_TIMESTEPS_PER_EPISODE,
-                         callback=checkpoint_callback)
+                         callback=CallbackList([checkpoint_callback, max_episodes_stop_callback]))
         self.model.save(self._get_results_dir() + os.sep + 'prenovelty_model')
-
-
 
     def post_novelty_learn(self):
         # Recreate env to inject novelty
@@ -316,10 +315,11 @@ class BaselineExperiment(Experiment):
                                                  save_path=self._get_results_dir() + os.sep + self.novelty_name + '-checkpoints',
                                                  name_prefix=self.novelty_name + "-" + BaselineExperiment.SAVED_MODEL_NAME)
         eval_callback = CustomEvalCallback(evaluate_every_n=BaselineExperiment.EVAL_EVERY_N_EPISODES,
-                                           trials_post_learning=self.trials_post_learning)
+                                           n_eval_episodes=self.trials_post_learning)
+        max_episodes_stop_callback = StopTrainingOnMaxEpisodes(max_episodes=self.TRAIN_EPISODES)
 
         self.model.learn(total_timesteps=self.TRAIN_EPISODES * self.MAX_TIMESTEPS_PER_EPISODE,
-                         callback=[checkpoint_callback, eval_callback])
+                         callback=CallbackList(callbacks=[checkpoint_callback, eval_callback, max_episodes_stop_callback]))
         self.model.save(self._get_results_dir() + os.sep + self.novelty_name + "-" + BaselineExperiment.SAVED_MODEL_NAME)
 
     def post_novelty_recover(self):
