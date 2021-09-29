@@ -36,6 +36,7 @@ from gym_novel_gridworlds.novelty_wrappers import inject_novelty
 
 ENV_ID = 'NovelGridworld-Pogostick-v1'  # always remains the same.
 
+
 class Experiment:
     DATA_DIR = 'data'
 
@@ -244,7 +245,7 @@ class BaselineExperiment(Experiment):
             self.model = PPO("MlpPolicy", self.env, verbose=0, gamma=GAMMA)
 
         # Environment wrappers
-        self.env = EpisodicWrapper(self.env, self.MAX_TIMESTEPS_PER_EPISODE)
+        self.env = EpisodicWrapper(self.env, self.MAX_TIMESTEPS_PER_EPISODE, verbose=True)
         self.env = InfoExtenderWrapper(self.env)
         if self.reward_shaping:
             self.env = RewardShaping(self.env)
@@ -299,7 +300,7 @@ class BaselineExperiment(Experiment):
         self.env = ActionPlaceholderWrapper(self.env, n_placeholders_actions=self.N_PLACEHOLDERS_ACTIONS - d_actions)
 
         # Rewrap the environment with everything else
-        self.env = EpisodicWrapper(self.env, self.MAX_TIMESTEPS_PER_EPISODE)
+        self.env = EpisodicWrapper(self.env, self.MAX_TIMESTEPS_PER_EPISODE, verbose=True)
         self.env = InfoExtenderWrapper(self.env)
         if self.reward_shaping:
             self.env = RewardShaping(self.env)
@@ -316,7 +317,7 @@ class BaselineExperiment(Experiment):
                                                  save_path=self._get_results_dir() + os.sep + self.novelty_name + '-checkpoints',
                                                  name_prefix=self.novelty_name + "-" + BaselineExperiment.SAVED_MODEL_NAME)
         eval_callback = CustomEvalCallback(evaluate_every_n=BaselineExperiment.EVAL_EVERY_N_EPISODES,
-                                           n_eval_episodes=self.trials_post_learning)
+                                           n_eval_episodes=self.trials_post_learning, render=self.render)
         max_episodes_stop_callback = StopTrainingOnMaxEpisodes(max_episodes=self.TRAIN_EPISODES)
 
         self.model.learn(total_timesteps=self.TRAIN_EPISODES * self.MAX_TIMESTEPS_PER_EPISODE,
@@ -344,6 +345,9 @@ class PolicyGradientExperiment(Experiment):
         self.load_model = args["load_model"]
         self.reward_shaping = args["reward_shaping"]
         self.algorithm = args["algorithm"]
+        self.learner = args["learner"]
+        self.exploration_mode = args["exploration_mode"]
+
 
         super(PolicyGradientExperiment, self).__init__(args, self.HEADER_TRAIN, self.HEADER_TEST,
                                                  f"{to_datestring(time.time())}-policygradient-{self.TRAIN_EPISODES}episodes")
@@ -362,7 +366,7 @@ class PolicyGradientExperiment(Experiment):
 
         self.model = SimpleDQN(int(self.env.action_space.n), int(self.env.observation_space.shape[0]),
                                NUM_HIDDEN, LEARNING_RATE, GAMMA, DECAY_RATE, MAX_EPSILON,
-                               False, {}, self.env.actions_id, random_seed)
+                               False, {}, self.env.actions_id, random_seed, self.learner, self.exploration_mode)
 
         if self.load_model:
             print(f"Attempting to load pretrained model {self.load_model}.")
