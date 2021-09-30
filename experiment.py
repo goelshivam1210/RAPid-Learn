@@ -327,7 +327,7 @@ class BaselineExperiment(Experiment):
 
     def post_novelty_recover(self):
         # evaluate the final policy
-        self.env.metadata['mode'] = 'test-recovery-postnovelty'
+        self.env.metadata['mode'] = 'recovery-postnovelty-test'
         evaluate_policy(self.model, self.env, self.trials_post_learning, deterministic=False, render=self.render)
 
 
@@ -431,17 +431,16 @@ class PolicyGradientExperiment(Experiment):
         print(f"Attempting to load pretrained model {self.load_model}.")
         self.model.load_model("", "", path_to_load=f"{self._get_results_dir()}{os.sep}prenovelty_model.npz")
 
-        self.env.metadata['mode'] = 'learn-postnovelty-train'
-        self._train_policy_gradient(novelty_name=self.novelty_name)
+        self._train_policy_gradient(phase="learn-postnovelty", novelty_name=self.novelty_name)
         self.model.save_model("", "", path_to_save=f"{self._get_results_dir()}{os.sep}{self.novelty_name}_model.npz")
 
     def post_novelty_recover(self):
         # evaluate the final policy
-        self.env.metadata['mode'] = 'test-recovery-postnovelty'
+        self.env.metadata['mode'] = 'recovery-postnovelty-test'
         for i in range(self.trials_post_learning):
             self._single_eval_episode()
 
-    def _train_policy_gradient(self, eval_every_n: int=-1, mode: str= 'prenovelty-test', novelty_name: str="prenovelty"):
+    def _train_policy_gradient(self, phase: str= 'prenovelty', novelty_name: str= "prenovelty"):
         self.Epsilons = []
         self.Rhos = []
         self.Steps = []
@@ -452,14 +451,16 @@ class PolicyGradientExperiment(Experiment):
         os.makedirs(CHECKPOINT_DIR, exist_ok=True)
 
         print(f"Training policy gradient for {self.TRAIN_EPISODES} episodes")
+
+        self.env.metadata['mode'] = phase + '-train'
+
         for episode in range(0, self.TRAIN_EPISODES):
             # Evaluate every n episodes
-            if eval_every_n > 0 and episode % eval_every_n == 0:
-                mode_before = self.env.metadata['mode']
-                self.env.metadata['mode'] = mode
+            if phase != 'prenovelty' and episode > 0 and episode % self.EVAL_EVERY_N_EPISODES == 0:
+                self.env.metadata['mode'] = phase + "-test"
                 for i in range(self.trials_post_learning):
                     self._single_eval_episode()
-                self.env.metadata['mode'] = mode_before
+                self.env.metadata['mode'] = phase + "-train"
             if episode % Experiment.CHECKPOINT_EVERY_N == 0 and episode > 0:
                 path = f"{CHECKPOINT_DIR}{os.sep}{BaselineExperiment.SAVED_MODEL_NAME}-{novelty_name}-{str(episode)}episodes"
                 self.model.save_model("", "", path_to_save=path)
@@ -524,6 +525,15 @@ class PolicyGradientExperiment(Experiment):
                         break
 
     def _single_eval_episode(self):
+        # Need to backup the model state to be able to go back to training
+        previous_epsilon = self.model._explore_eps
+        self.model._explore_eps = MIN_EPSILON
+        _xs,_hs,_dlogps,_drs = self.model._xs,self.model._hs,self.model._dlogps,self.model._drs
+        _grad_buffer = self.model._grad_buffer
+        _rmsprop_cache = self.model._rmsprop_cache
+
+        self.model.reset()
+
         obs = self.env.reset()
         info = self.env.get_info()
         done = False
@@ -533,6 +543,14 @@ class PolicyGradientExperiment(Experiment):
             action = self.model.process_step(obs, True, timestep)
             timestep += 1
             obs, rew, done, info = self.env.step(action)
+
+        self.model._explore_eps = previous_epsilon
+
+        # reset values as they were before
+        self.model._xs,self.model._hs,self.model._dlogps,self.model._drs = _xs,_hs,_dlogps,_drs
+        self.model._grad_buffer = _grad_buffer # update buffers that add up gradients over a batch
+        self.model._rmsprop_cache = _rmsprop_cache # rmsprop memory
+
 
 
 def to_datestring(unixtime, format='%Y-%m-%d_%H:%M:%S'):
