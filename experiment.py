@@ -44,6 +44,10 @@ class Experiment:
     EVAL_EVERY_N_EPISODES = 100
     MAX_TIMESTEPS_PER_EPISODE = 500
 
+    N_PLACEHOLDERS_INVENTORY = 2
+    N_PLACEHOLDERS_LIDAR = 2
+    N_PLACEHOLDERS_ACTIONS = 5
+
     def __init__(self, args, trial_id):
         self.trial_id = trial_id
         self.novelty_name = args['novelty_name']
@@ -87,12 +91,11 @@ class Experiment:
         self.env = InfoExtenderWrapper(self.env)
         if self.reward_shaping:
             self.env = RewardShaping(self.env)
-
-        self.env = Monitor(self.env, self._get_trial_dir() / f"monitor-{self.novelty_name}-{self.trial_id}.csv",
+        monitor_filename = str(self._get_trial_dir() / f"{self.novelty_name}-{self.trial_id}-monitor.csv")
+        self.env = Monitor(self.env, monitor_filename,
                            allow_early_resets=True, info_keywords=('success', 'mode'))
 
         check_env(self.env, warn=True)
-
 
     def _get_experiment_dir(self):
         return Experiment.DATA_DIR / self.experiment_id
@@ -112,6 +115,7 @@ class Experiment:
         with open(db_file_name, 'a') as f:  # append to the file created
             writer = csv.writer(f)
             writer.writerow(data)
+
     def write_params_to_file(self, data):
         db_file_name = self.experiment_dir + os.sep + "params.json"
         out_file = open(db_file_name, "w") 
@@ -264,11 +268,14 @@ class BaselineExperiment(Experiment):
     def __init__(self, args, trial_id):
         super(BaselineExperiment, self).__init__(args, trial_id)
 
-        if self.load_model:
-            print(f"Attempting to load pretrained model {self.load_model}.")
-            self.model = PPO.load(self._get_experiment_dir() / self.load_model)
+        if self.novelty_name != "prenovelty":
+            self.model = PPO.load(self._get_experiment_dir() / "prenovelty" / "trial-0" / "model_prenovelty")
         else:
             self.model = PPO("MlpPolicy", self.env, verbose=0, gamma=GAMMA)
+
+        # Override if a particular model is supplied
+        if self.load_model:
+            self.model = PPO.load(self._get_experiment_dir() / self.load_model)
 
         # This is to use the env with all the wrappers for the model.
         self.model.set_env(self.env)
@@ -303,9 +310,13 @@ class PolicyGradientExperiment(Experiment):
                                NUM_HIDDEN, LEARNING_RATE, GAMMA, DECAY_RATE, MAX_EPSILON,
                                False, {}, self.env.actions_id, random_seed, self.learner, self.exploration_mode)
 
+        if self.novelty_name != "prenovelty":
+            self.model.load_model("", "", path_to_load=self._get_experiment_dir() / "prenovelty" / "trial-0" / "model_prenovelty.npz")
+
+        # Override if a particular model is supplied
         if self.load_model:
-            print(f"Attempting to load pretrained model {self.load_model}.")
-            self.model.load_model("", "", path_to_load=self._get_experiment_dir() / self.load_model)
+            self.model.load_model("", "",
+                                  path_to_load=self._get_experiment_dir() / self.load_model)
 
         self.model.set_explore_epsilon(MAX_EPSILON)
 
@@ -315,7 +326,7 @@ class PolicyGradientExperiment(Experiment):
     def run(self):
         self.env.metadata['mode'] = 'learn'
         self._train_policy_gradient()
-        self.model.save_model("", "", path_to_save=self._get_experiment_dir() / f"{self.novelty_name}_model.npz")
+        self.model.save_model("", "", path_to_save=self._get_trial_dir() / f"{self.novelty_name}_model.npz")
 
         print(f"Evaluation - Model: {self.algorithm}, NOVELTY: {self.novelty_name}, AFTER_N_EPISODES: {self.train_episodes}")
         self.model.set_explore_epsilon(MIN_EPSILON)
@@ -428,8 +439,9 @@ class PolicyGradientExperiment(Experiment):
 
         # reset values as they were before
         self.model._xs, self.model._hs, self.model._dlogps, self.model._drs = _xs, _hs, _dlogps, _drs
-        self.model._grad_buffer = _grad_buffer # update buffers that add up gradients over a batch
-        self.model._rmsprop_cache = _rmsprop_cache # rmsprop memory
+        self.model._grad_buffer = _grad_buffer  # update buffers that add up gradients over a batch
+        self.model._rmsprop_cache = _rmsprop_cache  # rmsprop memory
+
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
@@ -449,14 +461,17 @@ if __name__ == "__main__":
     ap.add_argument("-E", "--exploration_mode", default='uniform', help="uniform, ucb", type=str)
 
     ap.add_argument("--load_model", default=None, type=str)
-    ap.add_argument("--train_episodes", default=500, type=int)
-    ap.add_argument("--reward_shaping", dest="reward_shaping", action="store_true")
-    ap.set_defaults(reward_shaping=False)
+    ap.add_argument("--train_episodes", default=10, type=int)
+    ap.add_argument("--reward_shaping_off", dest="reward_shaping", action="store_false")
+    ap.set_defaults(reward_shaping=True)
 
     args = vars(ap.parse_args())
 
     n_trials = args['n_trials']
 
+    args["experiment_id"] = args['experiment_id'] if args['experiment_id'] else f"{uuid.uuid4().hex}-{to_datestring(time.time())}-{args['algorithm']}-" \
+                                 f"{args['train_episodes']}episodes-" \
+                                 f"{'rewardshapingon' if args['reward_shaping'] else 'rewardshapingoff'}"
     for trial_id in range(0, n_trials):
         if args['algorithm'] == 'PPO':
             experiment1 = BaselineExperiment(args, trial_id)
