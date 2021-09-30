@@ -39,6 +39,7 @@ ENV_ID = 'NovelGridworld-Pogostick-v1'  # always remains the same.
 
 class Experiment:
     DATA_DIR = 'data'
+    CHECKPOINT_EVERY_N = 200
 
     def __init__(self, args, header_train, header_test, extra_run_ids=''):
         self.hashid = uuid.uuid4().hex
@@ -278,7 +279,7 @@ class BaselineExperiment(Experiment):
                            allow_early_resets=True, info_keywords=('success', 'mode'))
         check_env(self.env, warn=True)
 
-        checkpoint_callback = CheckpointCallback(save_freq=self.MAX_TIMESTEPS_PER_EPISODE * 500,
+        checkpoint_callback = CheckpointCallback(save_freq=self.MAX_TIMESTEPS_PER_EPISODE * Experiment.CHECKPOINT_EVERY_N,
                                                  save_path=self._get_results_dir() + os.sep + 'prenovelty-checkpoints',
                                                  name_prefix=BaselineExperiment.SAVED_MODEL_NAME)
         max_episodes_stop_callback = StopTrainingOnMaxEpisodes(max_episodes=self.TRAIN_EPISODES)
@@ -313,7 +314,7 @@ class BaselineExperiment(Experiment):
         self.model.set_env(self.env)
 
         print(f"Evaluation - Model: {self.algorithm}, NOVELTY: {self.novelty_name}, EPISODES: {self.TRAIN_EPISODES}")
-        checkpoint_callback = CheckpointCallback(save_freq=self.MAX_TIMESTEPS_PER_EPISODE * self.EVAL_EVERY_N_EPISODES,
+        checkpoint_callback = CheckpointCallback(save_freq=self.MAX_TIMESTEPS_PER_EPISODE * Experiment.CHECKPOINT_EVERY_N,
                                                  save_path=self._get_results_dir() + os.sep + self.novelty_name + '-checkpoints',
                                                  name_prefix=self.novelty_name + "-" + BaselineExperiment.SAVED_MODEL_NAME)
         eval_callback = CustomEvalCallback(evaluate_every_n=BaselineExperiment.EVAL_EVERY_N_EPISODES,
@@ -348,11 +349,8 @@ class PolicyGradientExperiment(Experiment):
         self.learner = args["learner"]
         self.exploration_mode = args["exploration_mode"]
 
-
         super(PolicyGradientExperiment, self).__init__(args, self.HEADER_TRAIN, self.HEADER_TEST,
                                                  f"{to_datestring(time.time())}-policygradient-{self.TRAIN_EPISODES}episodes")
-        self.CHECKPOINT_DIR = f"{self._get_results_dir()}{os.sep}prenovelty-checkpoints"
-        os.makedirs(self.CHECKPOINT_DIR, exist_ok=True)
 
         self.env = StatePlaceholderWrapper(self.env, n_placeholders_inventory=self.N_PLACEHOLDERS_INVENTORY,
                                            n_placeholders_lidar=self.N_PLACEHOLDERS_LIDAR)
@@ -376,7 +374,6 @@ class PolicyGradientExperiment(Experiment):
             os.makedirs(self._get_results_dir(), exist_ok=True)
 
         self.model.set_explore_epsilon(MAX_EPSILON)
-
 
     def run(self):
         if not self.load_model:
@@ -435,7 +432,7 @@ class PolicyGradientExperiment(Experiment):
         self.model.load_model("", "", path_to_load=f"{self._get_results_dir()}{os.sep}prenovelty_model.npz")
 
         self.env.metadata['mode'] = 'learn-postnovelty-train'
-        self._train_policy_gradient()
+        self._train_policy_gradient(novelty_name=self.novelty_name)
         self.model.save_model("", "", path_to_save=f"{self._get_results_dir()}{os.sep}{self.novelty_name}_model.npz")
 
     def post_novelty_recover(self):
@@ -444,14 +441,17 @@ class PolicyGradientExperiment(Experiment):
         for i in range(self.trials_post_learning):
             self._single_eval_episode()
 
-    def _train_policy_gradient(self, eval_every_n: int=-1, mode: str= 'prenovelty-test'):
+    def _train_policy_gradient(self, eval_every_n: int=-1, mode: str= 'prenovelty-test', novelty_name: str="prenovelty"):
         self.Epsilons = []
         self.Rhos = []
         self.Steps = []
         self.R = []
         self.Done = []
 
-        print(f"Training model for {self.TRAIN_EPISODES} episodes")
+        CHECKPOINT_DIR = f"{self._get_results_dir()}{os.sep}{novelty_name}-checkpoints"
+        os.makedirs(CHECKPOINT_DIR, exist_ok=True)
+
+        print(f"Training policy gradient for {self.TRAIN_EPISODES} episodes")
         for episode in range(0, self.TRAIN_EPISODES):
             # Evaluate every n episodes
             if eval_every_n > 0 and episode % eval_every_n == 0:
@@ -460,8 +460,8 @@ class PolicyGradientExperiment(Experiment):
                 for i in range(self.trials_post_learning):
                     self._single_eval_episode()
                 self.env.metadata['mode'] = mode_before
-            if episode % 500 == 0 and episode > 0:
-                path = f"{self.CHECKPOINT_DIR}{os.sep}{BaselineExperiment.SAVED_MODEL_NAME}-{str(episode)}episodes"
+            if episode % Experiment.CHECKPOINT_EVERY_N == 0 and episode > 0:
+                path = f"{CHECKPOINT_DIR}{os.sep}{BaselineExperiment.SAVED_MODEL_NAME}-{novelty_name}-{str(episode)}episodes"
                 self.model.save_model("", "", path_to_save=path)
             reward_per_episode = 0
             episode_timesteps = 0
@@ -535,7 +535,7 @@ class PolicyGradientExperiment(Experiment):
             obs, rew, done, info = self.env.step(action)
 
 
-def to_datestring(unixtime: int, format='%Y-%m-%d_%H:%M:%S'):
+def to_datestring(unixtime, format='%Y-%m-%d_%H:%M:%S'):
     return datetime.utcfromtimestamp(unixtime).strftime(format)
 
 
