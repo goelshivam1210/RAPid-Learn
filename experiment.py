@@ -326,7 +326,7 @@ class PolicyGradientExperiment(Experiment):
     def run(self):
         self.env.metadata['mode'] = 'learn'
         self._train_policy_gradient()
-        self.model.save_model("", "", path_to_save=self._get_trial_dir() / f"{self.novelty_name}_model.npz")
+        self.model.save_model("", "", path_to_save=self._get_trial_dir() / f"model_{self.novelty_name}.npz")
 
         print(f"Evaluation - Model: {self.algorithm}, NOVELTY: {self.novelty_name}, AFTER_N_EPISODES: {self.train_episodes}")
         self.model.set_explore_epsilon(MIN_EPSILON)
