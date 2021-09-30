@@ -16,13 +16,14 @@ class CustomEvalCallback(BaseCallback):
         self.render = render
 
     def _on_step(self) -> bool:
-        # Check if enough episodes have passed to trigger an evaluation. Switch flags for monitor back appropriately
-        done_array = np.array(self.locals.get("done") if self.locals.get("done") is not None else self.locals.get("dones"))
-        self.n_episodes += np.sum(done_array).item()
-        if self.n_episodes > self.evaluate_every_n:
-            self.training_env.metadata['mode'] = 'learn-postnovelty-test'
-            evaluate_policy(self.model, self.training_env, n_eval_episodes=self.n_eval_episodes, render=self.render,
-                            deterministic=False)
-            self.training_env.metadata['mode'] = 'learn-postnovelty-train'
-            self.n_episodes = 0
+        if self.evaluate_every_n > 0 and self.n_eval_episodes > 0:
+            # Check if enough episodes have passed to trigger an evaluation. Switch flags for monitor back appropriately
+            done_array = np.array(self.locals.get("done") if self.locals.get("done") is not None else self.locals.get("dones"))
+            self.n_episodes += np.sum(done_array).item()
+            if self.n_episodes > self.evaluate_every_n:
+                self.training_env.metadata['mode'] = 'learn-postnovelty-test'
+                evaluate_policy(self.model, self.training_env, n_eval_episodes=self.n_eval_episodes, render=self.render,
+                                deterministic=False)
+                self.training_env.metadata['mode'] = 'learn-postnovelty-train'
+                self.n_episodes = 0
         return True

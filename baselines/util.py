@@ -1,3 +1,6 @@
+from datetime import datetime
+
+
 def get_difference_in_obs_action_space(novelty_name):
     d_obs_inventory, d_obs_lidar, d_actions = 0, 0, 0
 
@@ -68,3 +71,7 @@ def get_difference_in_obs_action_space(novelty_name):
         d_actions = 1
 
     return d_obs_inventory, d_obs_lidar, d_actions
+
+
+def to_datestring(unixtime, format='%Y-%m-%d_%H:%M:%S'):
+    return datetime.utcfromtimestamp(unixtime).strftime(format)
