@@ -25,7 +25,6 @@ class Demo:
 
         self.n_episodes = args["n_episodes"]
 
-
         self.env = gym.make(ENV_ID)
 
         if self.novelty_name != "prenovelty":
@@ -70,14 +69,15 @@ class Demo:
             action = model.process_step(obs, True, timestep)
             timestep += 1
             obs, rew, done, info = self.env.step(action)
+            self.env.render()
 
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
-    ap.add_argument("--model_path", default="/home/luk/repos/RAPid-Learn/data/76d952deb2e84aa38356fbca4ec3cda5-2021-09-30_21:10:41-PPO-10episodes-rewardshapingon/prenovelty/trial-0/model_prenovelty.zip")
-    ap.add_argument("--algorithm", default="PPO", type=str)
+    ap.add_argument("--model_path", default="")
+    ap.add_argument("--algorithm", default="policy_gradient", type=str, help="<PPO, policy_gradient>")
     ap.add_argument("-N", "--novelty_name", default=None,
-                    help="Novelty to inject: #axetobreakeasy #axetobreakhard #firecraftingtableeasy #firecraftingtablehard #rubbertree #axefirecteasy",
+                    help="<axetobreakeasy axetobreakhard firecraftingtableeasy firecraftingtablehard rubbertree axefirecteasy>",
                     type=str)
     ap.add_argument("--n_episodes", default=5, type=int)
 
