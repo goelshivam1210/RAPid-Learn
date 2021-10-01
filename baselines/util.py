@@ -1,4 +1,7 @@
+import os
+import re
 from datetime import datetime
+from pathlib import Path
 
 
 def get_difference_in_obs_action_space(novelty_name):
@@ -75,3 +78,15 @@ def get_difference_in_obs_action_space(novelty_name):
 
 def to_datestring(unixtime, format='%Y-%m-%d_%H:%M:%S'):
     return datetime.utcfromtimestamp(unixtime).strftime(format)
+
+
+def find_max_trial_number(path: Path):
+    list_of_dirs = os.listdir(path)
+
+    def extract_number(f):
+        s = re.findall("\d+", f)
+        return int(s[0]) if s else -1
+
+    if not [extract_number(d) for d in list_of_dirs]:
+        return 0
+    return max([extract_number(d) for d in list_of_dirs])

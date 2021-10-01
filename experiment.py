@@ -27,7 +27,7 @@ from stable_baselines3 import PPO
 from SimpleDQN import SimpleDQN
 from baselines.callbacks import CustomEvalCallback
 
-from baselines.util import get_difference_in_obs_action_space, to_datestring
+from baselines.util import get_difference_in_obs_action_space, to_datestring, find_max_trial_number
 from brain import Brain
 from baselines.wrappers import *
 from params import *
@@ -67,11 +67,11 @@ class Experiment:
                                  f"{self.train_episodes}episodes-" \
                                  f"{'rewardshapingon' if self.reward_shaping else 'rewardshapingoff'}"
 
-        if not self.novelty_name:
+        if self.novelty_name is None:
             self.novelty_name = "prenovelty"
 
         self.experiment_dir = self._get_experiment_dir()
-        os.makedirs(self._get_trial_dir(), exist_ok=True)
+        os.makedirs(self._get_trial_dir(), exist_ok=False)
 
         set_random_seed(trial_id, using_cuda=True)
 
@@ -281,7 +281,8 @@ class BaselineExperiment(Experiment):
         self.model.set_env(self.env)
 
     def run(self):
-        print(f"Training model on novelty: {self.novelty_name}")
+        print(f"Starting trial {self.trial_id} for Experiment ID: {self.experiment_id} | Training {self.algorithm} on "
+              f"novelty: {self.novelty_name}")
         self.env.metadata['mode'] = 'learn'
         checkpoint_callback = CheckpointCallback(
             save_freq=self.MAX_TIMESTEPS_PER_EPISODE * Experiment.CHECKPOINT_EVERY_N,
@@ -315,8 +316,7 @@ class PolicyGradientExperiment(Experiment):
 
         # Override if a particular model is supplied
         if self.load_model:
-            self.model.load_model("", "",
-                                  path_to_load=self._get_experiment_dir() / self.load_model)
+            self.model.load_model("", "", path_to_load=self._get_experiment_dir() / self.load_model)
 
         self.model.set_explore_epsilon(MAX_EPSILON)
 
@@ -324,6 +324,8 @@ class PolicyGradientExperiment(Experiment):
         os.makedirs(self.CHECKPOINT_DIR, exist_ok=True)
 
     def run(self):
+        print(f"Starting trial {self.trial_id} for Experiment ID: {self.experiment_id} | Training {self.algorithm} on "
+              f"novelty: {self.novelty_name}")
         self.env.metadata['mode'] = 'learn'
         self._train_policy_gradient()
         self.model.save_model("", "", path_to_save=self._get_trial_dir() / f"model_{self.novelty_name}.npz")
@@ -472,11 +474,17 @@ if __name__ == "__main__":
     args["experiment_id"] = args['experiment_id'] if args['experiment_id'] else f"{uuid.uuid4().hex}-{to_datestring(time.time())}-{args['algorithm']}-" \
                                  f"{args['train_episodes']}episodes-" \
                                  f"{'rewardshapingon' if args['reward_shaping'] else 'rewardshapingoff'}"
-    for trial_id in range(0, n_trials):
+    args["novelty_name"] = args["novelty_name"] if args["novelty_name"] else "prenovelty"
+
+    novelty_path = Path(Experiment.DATA_DIR) / args["experiment_id"] / args["novelty_name"]
+    os.makedirs(novelty_path, exist_ok=True)
+    initial_trial_id = find_max_trial_number(novelty_path) + 1
+    for trial_id in range(initial_trial_id, initial_trial_id+n_trials):
         if args['algorithm'] == 'PPO':
             experiment1 = BaselineExperiment(args, trial_id)
         elif args['algorithm'] == 'policy_gradient':
             experiment1 = PolicyGradientExperiment(args, trial_id)
         else:
             experiment1 = RapidExperiment(args, trial_id)
+
         experiment1.run()
