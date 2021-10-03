@@ -21,9 +21,9 @@ class CustomEvalCallback(BaseCallback):
             done_array = np.array(self.locals.get("done") if self.locals.get("done") is not None else self.locals.get("dones"))
             self.n_episodes += np.sum(done_array).item()
             if self.n_episodes > self.evaluate_every_n:
-                self.training_env.metadata['mode'] = 'learn-postnovelty-test'
+                self.training_env.metadata['mode'] = 'eval'
                 evaluate_policy(self.model, self.training_env, n_eval_episodes=self.n_eval_episodes, render=self.render,
                                 deterministic=False)
-                self.training_env.metadata['mode'] = 'learn-postnovelty-train'
+                self.training_env.metadata['mode'] = 'learn'
                 self.n_episodes = 0
         return True
