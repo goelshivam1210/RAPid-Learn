@@ -92,6 +92,7 @@ class RewardShaping(gym.RewardWrapper):
         else:
             return None
 
+
 class EpisodicWrapper(gym.Wrapper):
     LOG_INTERVAL = 200
 
@@ -103,35 +104,41 @@ class EpisodicWrapper(gym.Wrapper):
         self.timestep = 0
         self.episode = 0
         self.timesteps_per_episode = timesteps_per_episode
+        self.env.metadata['mode'] = 'learn'
 
     def step(self, action):
         next_state, reward, done, info = self.env.step(action)
         self.timestep += 1
-
         if self.timestep == self.timesteps_per_episode:
             done = True
         return next_state, reward, done, info
 
     def reset(self):
         obs = self.env.reset()
-        self.episode += 1
+        if self.env.metadata['mode'] != "eval":
+            self.episode += 1
+
+        self.env.metadata['episode_counter'] = self.episode
         self.timestep = 0
-        if self.verbose and self.episode % EpisodicWrapper.LOG_INTERVAL == 0:
+        if self.verbose and self.episode % EpisodicWrapper.LOG_INTERVAL == 0 and self.env.metadata['mode'] != "eval":
             print(f"Starting episode #{self.episode}")
         return obs
 
+
 class InfoExtenderWrapper(gym.Wrapper):
     """Appends several useful things to the info dict."""
-    def __init__(self, env, mode='train'):
+    def __init__(self, env):
         super().__init__(env)
         self.env = env
-        self.env.metadata['mode'] = mode
 
     def step(self, action):
+
         next_state, reward, done, info = self.env.step(action)
         info['mode'] = self.env.metadata['mode']
         info['success'] = str(self.env.last_done)
+        info["episode_counter"] = str(self.env.metadata['episode_counter'])
         return next_state, reward, done, info
+
 
 class StatePlaceholderWrapper(gym.ObservationWrapper):
     def __init__(self, env, n_placeholders_inventory=0, n_placeholders_lidar=0):
