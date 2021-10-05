@@ -132,7 +132,6 @@ class InfoExtenderWrapper(gym.Wrapper):
         self.env = env
 
     def step(self, action):
-
         next_state, reward, done, info = self.env.step(action)
         info['mode'] = self.env.metadata['mode']
         info['success'] = self.env.last_done
