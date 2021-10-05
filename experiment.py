@@ -462,8 +462,8 @@ if __name__ == "__main__":
 
     novelty_path = Path(Experiment.DATA_DIR) / args["experiment_id"] / args["novelty_name"]
     os.makedirs(novelty_path, exist_ok=True)
-    initial_trial_id = find_max_trial_number(novelty_path) + 1
-    for trial_id in range(initial_trial_id, initial_trial_id+n_trials):
+    for _ in range(0, n_trials):
+        trial_id = find_max_trial_number(novelty_path) + 1
         if args['algorithm'] == 'PPO':
             experiment1 = BaselineExperiment(args, trial_id)
         elif args['algorithm'] == 'policy_gradient':
