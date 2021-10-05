@@ -338,9 +338,6 @@ class PolicyGradientExperiment(Experiment):
         self.env.close()
 
     def _train_policy_gradient(self):
-        self.Epsilons = []
-        self.Rhos = []
-        self.Steps = []
         self.R = []
         self.Done = []
 
@@ -359,13 +356,10 @@ class PolicyGradientExperiment(Experiment):
                                                            f"-{str(episode)}episodes.npz")
             reward_per_episode = 0
             episode_timesteps = 0
-            epsilon = MIN_EPSILON + (MAX_EPSILON - MIN_EPSILON) * \
-                      math.exp(-LAMBDA * episode)
+            epsilon = MIN_EPSILON + (MAX_EPSILON - MIN_EPSILON) * math.exp(-LAMBDA * episode)
             self.model._explore_eps = epsilon
-            self.rho = MIN_RHO + (MAX_RHO - MIN_RHO) * \
-                       math.exp(-LAMBDA * episode)
+            self.rho = MIN_RHO + (MAX_RHO - MIN_RHO) * math.exp(-LAMBDA * episode)
             obs = self.env.reset()
-            info = self.env.get_info()
 
             while True:
                 action = self.model.process_step(obs, True, episode_timesteps)
@@ -374,47 +368,33 @@ class PolicyGradientExperiment(Experiment):
                     self.env.render()
 
                 episode_timesteps += 1
-
                 self.model.give_reward(rew)
                 # here we update the network with the observation and reward
                 reward_per_episode += rew  # save reward
-                if done or episode_timesteps > PolicyGradientExperiment.MAX_TIMESTEPS_PER_EPISODE:
+                if done:
                     self.model.finish_episode()
                     if episode % UPDATE_RATE == 0:
                         self.model.update_parameters()
-                    if done:
-                        if episode % PRINT_EVERY == 0:
-                            print("--EP >>{}, steps>>{},  Rew>>{}, done({})>>{}, eps>>{} rho>>{} \n".format(episode,
-                                                                                                            episode_timesteps,
-                                                                                                            reward_per_episode,
-                                                                                                            NO_OF_DONES_TO_CHECK,
-                                                                                                            np.mean(self.Done[-NO_OF_DONES_TO_CHECK:]),
-                                                                                                            round(self.model._explore_eps, 3),
-                                                                                                            round(self.rho, 3)))
-                        self.Epsilons.append(self.model._explore_eps)
-                        self.Rhos.append(self.rho)
-                        self.Steps.append(episode_timesteps)
+                    if episode % PRINT_EVERY == 0:
+                        print("--EP >>{}, steps>>{},  Rew>>{}, done({})>>{}, eps>>{} rho>>{} \n".format(episode,
+                                                                                                        episode_timesteps,
+                                                                                                        reward_per_episode,
+                                                                                                        NO_OF_DONES_TO_CHECK,
+                                                                                                        np.mean(self.Done[-NO_OF_DONES_TO_CHECK:]),
+                                                                                                        round(self.model._explore_eps, 3),
+                                                                                                        round(self.rho, 3)))
+                    crafted_pogostick = info['success']
+                    if crafted_pogostick:
                         self.Done.append(1)
                         self.R.append(reward_per_episode)
                         if episode > NO_OF_EPS_TO_CHECK:
-                            if np.mean(self.R[-NO_OF_EPS_TO_CHECK:]) > SCORE_TO_CHECK:  # check the average reward for last 70 episodes
-                                # for future we can write an evaluation function here which runs a evaluation on the current policy.
-                                if np.sum(self.Done[-NO_OF_DONES_TO_CHECK:]) > NO_OF_SUCCESSFUL_DONE:  # and check the success percentage of the agent > 80%.
-                                    print("The agent has learned to reach the subgoal")
-                                    return True
+                            # check for convergence
+                            running_success_mean = np.sum(self.Done[-NO_OF_DONES_TO_CHECK:])
+                            if running_success_mean > NO_OF_SUCCESSFUL_DONE:
+                                print(f"Agent converged on novelty: {self.novelty_name} with {running_success_mean}% success.")
+                                return True
                         break
-                    elif episode_timesteps >= PolicyGradientExperiment.MAX_TIMESTEPS_PER_EPISODE:
-                        if episode % PRINT_EVERY == 0:
-                            print("--EP >>{}, steps>>{},  Rew>>{}, done({})>>{}, eps>>{} rho>>{} \n".format(episode,
-                                                                                                            episode_timesteps,
-                                                                                                            reward_per_episode,
-                                                                                                            NO_OF_DONES_TO_CHECK,
-                                                                                                            np.mean(self.Done[-NO_OF_DONES_TO_CHECK:]),
-                                                                                                            round(self.model._explore_eps, 3),
-                                                                                                            round(self.rho, 3)))
-                        self.Epsilons.append(self.model._explore_eps)
-                        self.Rhos.append(self.rho)
-                        self.Steps.append(episode_timesteps)
+                    else:
                         self.Done.append(0)
                         self.R.append(reward_per_episode)
                         break

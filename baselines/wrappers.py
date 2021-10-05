@@ -135,7 +135,7 @@ class InfoExtenderWrapper(gym.Wrapper):
 
         next_state, reward, done, info = self.env.step(action)
         info['mode'] = self.env.metadata['mode']
-        info['success'] = str(self.env.last_done)
+        info['success'] = self.env.last_done
         info["episode_counter"] = str(self.env.metadata['episode_counter'])
         return next_state, reward, done, info
 
