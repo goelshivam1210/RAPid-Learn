@@ -309,7 +309,7 @@ class PolicyGradientExperiment(Experiment):
 
         self.model = SimpleDQN(int(self.env.action_space.n), int(self.env.observation_space.shape[0]),
                                NUM_HIDDEN, LEARNING_RATE, GAMMA, DECAY_RATE, MAX_EPSILON,
-                               False, {}, self.env.actions_id, random_seed, self.learner, self.exploration_mode)
+                               False, {}, self.env.actions_id, trial_id, self.learner, self.exploration_mode)
 
         if self.novelty_name != "prenovelty":
             self.model.load_model("", "", path_to_load=self._get_experiment_dir() / "prenovelty" / "model_prenovelty.npz")
