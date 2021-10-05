@@ -93,7 +93,7 @@ class Experiment:
             self.env = RewardShaping(self.env)
         monitor_filename = str(self._get_trial_dir() / f"{self.novelty_name}-{self.trial_id}-monitor.csv")
         self.env = Monitor(self.env, monitor_filename,
-                           allow_early_resets=True, info_keywords=('success', 'mode'))
+                           allow_early_resets=True, info_keywords=('success', 'mode', "episode_counter"))
 
         check_env(self.env, warn=True)
 
@@ -269,7 +269,7 @@ class BaselineExperiment(Experiment):
         super(BaselineExperiment, self).__init__(args, trial_id)
 
         if self.novelty_name != "prenovelty":
-            self.model = PPO.load(self._get_experiment_dir() / "prenovelty" / "trial-0" / "model_prenovelty")
+            self.model = PPO.load(self._get_experiment_dir() / "prenovelty" / "model_prenovelty")
         else:
             self.model = PPO("MlpPolicy", self.env, verbose=0, gamma=GAMMA)
 
@@ -312,7 +312,7 @@ class PolicyGradientExperiment(Experiment):
                                False, {}, self.env.actions_id, random_seed, self.learner, self.exploration_mode)
 
         if self.novelty_name != "prenovelty":
-            self.model.load_model("", "", path_to_load=self._get_experiment_dir() / "prenovelty" / "trial-0" / "model_prenovelty.npz")
+            self.model.load_model("", "", path_to_load=self._get_experiment_dir() / "prenovelty" / "model_prenovelty.npz")
 
         # Override if a particular model is supplied
         if self.load_model:
@@ -370,6 +370,8 @@ class PolicyGradientExperiment(Experiment):
             while True:
                 action = self.model.process_step(obs, True, episode_timesteps)
                 obs, rew, done, info = self.env.step(action)
+                if self.render:
+                    self.env.render()
 
                 episode_timesteps += 1
 
@@ -436,6 +438,8 @@ class PolicyGradientExperiment(Experiment):
             action = self.model.process_step(obs, True, timestep)
             timestep += 1
             obs, rew, done, info = self.env.step(action)
+            if self.render:
+                self.env.render()
 
         self.model._explore_eps = previous_epsilon
 
