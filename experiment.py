@@ -1,17 +1,10 @@
 import time
-from datetime import datetime
-import math
-import sys
 import os
-import glob
 import csv
 import argparse
-import copy
 import uuid
-from abc import abstractmethod, ABC
-import gym
+from abc import abstractmethod
 import json
-import logging
 from pathlib import Path
 
 from stable_baselines3.common.callbacks import CheckpointCallback, CallbackList, StopTrainingOnMaxEpisodes
@@ -19,8 +12,6 @@ from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.env_checker import check_env
 from stable_baselines3.common.utils import set_random_seed
 from stable_baselines3.common.evaluation import evaluate_policy
-
-from params import *
 
 from stable_baselines3 import PPO
 
@@ -74,12 +65,10 @@ class Experiment:
         os.makedirs(self._get_trial_dir(), exist_ok=False)
 
         set_random_seed(trial_id, using_cuda=True)
-
         self.env = gym.make(ENV_ID)
 
         if self.novelty_name != "prenovelty":
             self.env = inject_novelty(self.env, self.novelty_name)
-
         d_obs_inventory, d_obs_lidar, d_actions = get_difference_in_obs_action_space(self.novelty_name)
         self.env = StatePlaceholderWrapper(self.env,
                                            n_placeholders_inventory=Experiment.N_PLACEHOLDERS_INVENTORY - d_obs_inventory,
