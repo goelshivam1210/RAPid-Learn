@@ -2,10 +2,10 @@ import math
 import random
 
 #Smart-exploration
-# MAX_EPSILON = 0.3
+MAX_EPSILON = 0.3
 
 # #Epsilon-greedy
-MAX_EPSILON = 0.2
+# MAX_EPSILON = 0.2
 
 MAX_TIMESTEPS = 300
 MAX_RHO = 0.3
@@ -17,9 +17,9 @@ NO_OF_SUCCESSFUL_DONE = 96
 
 # remains same always
 UPDATE_RATE = 10 # network weights update rate
-MAX_EPISODES = 5000
-EPS_TO_EVAL = 10
-EVAL_INTERVAL = 10
+MAX_EPISODES = 10000
+EPS_TO_EVAL = 1
+EVAL_INTERVAL = 50
 NUM_HIDDEN = 24
 GAMMA = 0.98
 LEARNING_RATE = 1e-3

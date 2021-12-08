@@ -4,44 +4,43 @@
 
 
 (:types
+	wooden_axe - physobj
 	water - physobj
 	rubber_tree - physobj
-    plank - breakable
-    plank - placeable
+    ; plank - placeable
     wall - physobj
-    breakable - physobj
     entity - physobj
     plank - physobj
-    tree_tap - craftable
-    placeable - physobj
+    ; tree_tap - craftable
+    ; placeable - physobj
     crafting_table - physobj
     tree_tap - physobj
-    plank - craftable
-    coord - concept
-    craftable - physobj
-    crafting_table - breakable
-    var - object
-    crafting_table - placeable
+    ; plank - craftable
+    ; coord - concept
+    ; craftable - physobj
+    ; var - object
+    ; crafting_table - placeable
     tapped_log - physobj
-    concept - var
+    ; concept - var
     rubber - physobj
     physobj - physical
     actor - physical
     pogo_stick - physobj
     stick - physobj
     tree_log - physobj
-    pogo_stick - craftable
-    stick - craftable
-    physical - var
-    tree_log - breakable
+    ; pogo_stick - craftable
+    ; stick - craftable
+    ; physical - var
     air - physobj
-    tree_log - placeable
+    ; tree_log - placeable
+    ; water - physobj
 )
 
 (:predicates
     (holding ?v0 - physobj)
     (floating ?v0 - physobj)
     (facing ?v0 - physobj)
+    (onfire ?v0 - physobj)
 )
 
 (:functions
@@ -50,12 +49,33 @@
     ; (totalcost)
 )
 
+(:action spray
+    :parameters    (?physobj01 - physobj)
+    :precondition (and  
+            (facing ?physobj01)
+            (onfire ?physobj01)
+            (holding water)
+    )
+    :effect (not(onfire crafting_table))
+)
+
+(:action spray_crafting_table
+    :parameters    ()
+    :precondition (and  
+            (facing crafting_table)
+            (onfire crafting_table)
+            (holding water)
+    )
+    :effect (not(onfire crafting_table))
+)
+
 (:action crafttree_tap
     :parameters    ()
     :precondition  (and
         (>= ( inventory plank) 4)
         (>= ( inventory stick) 1)
         (facing crafting_table)
+        (not (onfire crafting_table))
     )
     :effect  (and
         (increase ( inventory tree_tap) 1)
@@ -76,6 +96,35 @@
     )
 )
 
+; (:action approach_floating
+;     :parameters    (?physobj01 - physobj ?physobj02 - physobj )
+;     :precondition  (and
+;         (>= ( world ?physobj02) 1)
+;         (facing ?physobj01)
+;     )
+;     :effect  (and
+;         (facing ?physobj02)
+;         (not (facing ?physobj01))
+;     )
+; )
+
+(:action approach_floating
+    :parameters    (?physobj01 - physobj ?physobj02 - physobj)
+    :precondition  (and
+        (>= ( world ?physobj02) 1)
+        (facing ?physobj01)
+        (floating ?physobj02)
+    )
+    :effect  (and
+        (facing air)
+        (decrease ( world ?physobj02) 1)
+        (increase ( inventory ?physobj02) 1)
+        (not (floating ?physobj02))
+        (increase ( world air) 1)
+
+    )
+)
+
 (:action craftplank
     :parameters    ()
     :precondition  (>= ( inventory tree_log) 1)
@@ -85,11 +134,12 @@
     )
 )
 
-(:action break
+(:action break_holding
     :parameters    ()
     :precondition  (and
         (facing tree_log)
         (not (floating tree_log))
+        (holding wooden_axe)
     )
     :effect  (and
         (facing air)
@@ -99,6 +149,21 @@
         (decrease ( world tree_log) 1)
     )
 )
+
+; (:action break
+;     :parameters    ()
+;     :precondition  (and
+;         (facing tree_log)
+;         (not (floating tree_log))
+;     )
+;     :effect  (and
+;         (facing air)
+;         (not (facing tree_log))
+;         (increase ( inventory tree_log) 1)
+;         (increase ( world air) 1)
+;         (decrease ( world tree_log) 1)
+;     )
+; )
 
 (:action craftstick
     :parameters    ()
@@ -138,15 +203,28 @@
 )
 
 (:action select
-    :parameters    (?physobj01 - physobj )
+    :parameters    (?physobj01 - physobj ?physobj02 - physobj)
     :precondition  (and
         (>= ( inventory ?physobj01) 1)
-        ; (holding air)
+        (>= ( inventory ?physobj02) 1)
+        (not (holding ?physobj02))
+        (holding ?physobj01)
     )
     :effect  (and
-        (holding ?physobj01)
-        (not (holding air))
+        (not(holding ?physobj01))
+        (holding ?physobj02)
     )
 )
 
+; (:action deselect
+;     :parameters    (?physobj01 - physobj )
+;     :precondition  (and
+;         (>= ( inventory ?physobj01) 1)
+;         (holding ?physobj01)
+;     )
+;     :effect  (and
+;         (holding air)
+;         (not (holding ?physobj01))
+;     )
+; )
 )

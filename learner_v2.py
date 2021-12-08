@@ -1,7 +1,3 @@
-'''
-Author: Shivam Goel
-Email: goelshivam1210@gmail.com
-'''
 import time
 import numpy as np
 import math
@@ -43,6 +39,8 @@ class Learner:
         self.learned_failed_action = False
         self.guided_action = guided_action
         self.exploration_mode = exploration_mode
+        # print ("actionsID = ", self.env.actions_id)
+        # print ("actions to bump up = ",self.actions_bump_up)
         if not self.learned_failed_action:
             self.mode = 'exploration' # we are exploring the novel environment to stitch the plan by learning the new failed action.
         else:
@@ -318,7 +316,7 @@ class Learner:
         while True:
             
             obs, action, done, info = self.step_env(orig_obs=obs, info=info, done=done)
-            # self.env.render()
+            self.env.render()
             self.is_success_met = self.success_func(self.env.get_observation(),self.env.get_info()) # self.success_func returns a boolean indicating whether the desired effects were met
             self.reward_success_met = self.reward_funcs.check_success(info)
 

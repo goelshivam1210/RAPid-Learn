@@ -412,5 +412,17 @@ class RewardFunctionGenerator:
             print("Not reachable")
             # time.sleep(10)
             return False
+
+class OperatorGenerator:
+    def __init__(self, failed_operator_obj, novel_action_set, novel_states_set) -> None:
+        self.failed_operator = failed_operator_obj
+        self.novel_actions = novel_action_set
+        self.novel_states = novel_states_set
+    def add_new_predicates():
+        pass
+    def add_new_preconditions():
+        pass
+    def add_new_effects():
+        pass
 if __name__ == "__main__":
     reward = RewardFunctionGenerator()

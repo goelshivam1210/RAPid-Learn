@@ -1,13 +1,3 @@
-'''
-# author: Shivam Goel
-# email: shivam.goel@tufts.edu
-
-# This file is the Brain of RAPidL.
-# It is the main file which talks to the planner, learner and the game instance.
-
-Important References
-
-'''
 import os
 import re
 import sys
