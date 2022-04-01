@@ -3,6 +3,9 @@
 This repository contains the code for the RAPidLearn. A framework which integrates planning and learning to solve 
 complex task in non stationary environments for open world learnings. The following code uses the gym-novel-gridworlds environments. The planner used in this case is the Metric FF_v_2.1. For any questions please contact shivam.goel@tufts.edu
 
+Technical Appendix to **RAPid-Learn: A Framework for Learning to Recover for Handling Novelties in Open-World Environments.** in TechnicalAppendix.pdf
+
+
 ### Setup the planner
 
 Download [MetricFF](https://fai.cs.uni-saarland.de/hoffmann/ff/Metric-FF-v2.1.tgz).
