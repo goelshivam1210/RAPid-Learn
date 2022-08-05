@@ -29,20 +29,17 @@ Use the requirements file to install the dependencies
 
 Install [gym_novel_gridworlds](https://github.com/gtatiya/gym-novel-gridworlds). <BR>
 
-Switch to branch `RAPid-Learn` 
+Switch to branch `adaptive_agents`
 
 ### Run the code
 
-<!-- Brain.py consists of the main code. 
-
 To run the RAPidLearn -->
- 
- <!-- In order to insert novelty do the following:
- Change the variable `self.novelty_name` value (line #100 in `brain.py`) to any of the following
- 1. `'axetobreak'`
- 2. `'firecraftingtable'`
- 3. `'rubbertree'` -->
 
+
+Run <BR>
+``` python experiment.py```
+
+You can also use args.
 In order to run experiments run the following script <BR>
 ``` python experiment.py --TP <trials pre novelty> --TN <trials_post_novelty> --N <novelty_name> --L <learner_name> -E <exploration_mode> -R <render>```
 
@@ -63,5 +60,3 @@ In order to run experiments run the following script <BR>
   1. `'uniform'`
   2. `'ucb'`   
 
-Run <BR>
-``` python experiment.py```
