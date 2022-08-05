@@ -39,8 +39,7 @@ To run the RAPidLearn -->
 Run <BR>
 ``` python experiment.py```
 
-You can also use args.
-In order to run experiments run the following script <BR>
+You can also use arguments. <BR>
 ``` python experiment.py --TP <trials pre novelty> --TN <trials_post_novelty> --N <novelty_name> --L <learner_name> -E <exploration_mode> -R <render>```
 
 `novelty_name`
@@ -60,3 +59,4 @@ In order to run experiments run the following script <BR>
   1. `'uniform'`
   2. `'ucb'`   
 
+For questions please contact shivam.goel@tufts.edu
